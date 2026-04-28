@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page Table Visualizer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0f1117;
+  --surface: #171b26;
+  --raised:  #1e2233;
+  --border:  #2e3248;
+  --muted:   #4a5068;
+  --text:    #d0d6f0;
+  --dim:     #7a82a0;
+  --blue:    #6b9cf7;
+  --green:   #4ec994;
+  --yellow:  #e8c56d;
+  --purple:  #b48df5;
+  --red:     #f07070;
+  --cyan:    #5dd0e8;
+  --orange:  #e8a44a;
+  --mono:    ui-monospace,'Cascadia Code','Fira Code',Consolas,monospace;
+  --r:       4px;
+}
+body { font-family:var(--mono); font-size:13px; line-height:1.5;
+       background:var(--bg); color:var(--text);
+       height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+/* ── topbar ── */
+#topbar { flex-shrink:0; background:var(--surface); border-bottom:1px solid var(--border);
+          padding:8px 14px; display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; }
+.arch-tabs { display:flex; align-self:flex-end; }
+.arch-tab { background:none; border:1px solid var(--border); color:var(--dim);
+             font:12px/1 var(--mono); padding:5px 12px; cursor:pointer; transition:all .12s; }
+.arch-tab:first-child { border-radius:var(--r) 0 0 var(--r); }
+.arch-tab:last-child  { border-radius:0 var(--r) var(--r) 0; border-left:none; }
+.arch-tab.on { background:var(--blue); color:#0a0e1a; border-color:var(--blue); font-weight:600; }
+.field { display:flex; flex-direction:column; gap:3px; }
+.fl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; }
+input[type=text], select { background:var(--raised); border:1px solid var(--border); color:var(--text);
+                            font:13px/1 var(--mono); padding:5px 8px; border-radius:var(--r);
+                            outline:none; transition:border-color .15s; }
+input[type=text]:focus, select:focus { border-color:var(--blue); }
+input[type=file] { display:none; }
+.vsep { width:1px; height:28px; background:var(--border); align-self:flex-end; }
+#walk { background:var(--blue); color:#0a0e1a; font:600 13px/1 var(--mono); border:none;
+        padding:6px 18px; border-radius:var(--r); cursor:pointer; align-self:flex-end;
+        transition:filter .15s; }
+#walk:hover { filter:brightness(1.12); }
+
+/* ── main layout ── */
+#main { flex:1; display:flex; overflow:hidden; }
+
+/* ── left pane ── */
+#lpane { width:360px; flex-shrink:0; display:flex; flex-direction:column;
+         border-right:1px solid var(--border); overflow:hidden; }
+#lpane-hdr { flex-shrink:0; padding:6px 12px; background:var(--surface);
+             border-bottom:1px solid var(--border); display:flex; align-items:center;
+             justify-content:space-between; gap:8px; }
+#lpane-hdr span { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; }
+.lhdr-right { display:flex; align-items:center; gap:6px; }
+.load-btn { background:var(--raised); border:1px solid var(--border); color:var(--dim);
+            font:11px/1 var(--mono); padding:3px 8px; border-radius:var(--r);
+            cursor:pointer; transition:all .12s; white-space:nowrap; }
+.load-btn:hover { border-color:var(--blue); color:var(--blue); }
+#dump-text { flex:1; resize:none; background:var(--bg); border:none; color:var(--cyan);
+             font:11px/1.5 var(--mono); padding:10px 12px; outline:none; overflow-y:auto; }
+#dump-text::placeholder { color:var(--muted); font-style:italic; }
+#dump-status { flex-shrink:0; padding:5px 12px; font-size:11px; color:var(--muted);
+               background:var(--surface); border-top:1px solid var(--border);
+               white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#dump-status.ok  { color:var(--green); }
+#dump-status.err { color:var(--red); }
+
+/* ── right pane ── */
+#rpane { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+#rnavbar { flex-shrink:0; background:var(--surface); border-bottom:1px solid var(--border);
+           padding:0 12px; height:34px; display:flex; align-items:center; gap:4px; overflow:hidden; }
+.crumb { font-size:12px; color:var(--dim); cursor:pointer; padding:3px 6px; border-radius:3px;
+         white-space:nowrap; transition:all .1s; }
+.crumb:hover { background:var(--raised); color:var(--text); }
+.crumb.cur { color:var(--blue); cursor:default; pointer-events:none; }
+.csep { color:var(--muted); font-size:11px; }
+#nb-hint { font-size:11px; color:var(--muted); }
+.back-btn { background:none; border:1px solid var(--border); color:var(--dim);
+            font:11px/1 var(--mono); padding:2px 8px; border-radius:3px; cursor:pointer; }
+.back-btn:hover { border-color:var(--blue); color:var(--blue); }
+
+/* ── diagram + detail ── */
+#rpane-body { flex:1; display:flex; overflow:hidden; }
+
+/* ── diagram ── */
+#diagram-scroll { flex:1; overflow:auto; position:relative; }
+#diagram-content { display:flex; flex-direction:row; align-items:flex-start;
+                   padding:20px; gap:0; min-width:max-content; min-height:100%; }
+#arrows { position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
+
+/* column gap for arrows */
+.col-gap { width:52px; flex-shrink:0; }
+
+/* node card */
+.pt-col { flex-shrink:0; width:268px; }
+.node { background:var(--surface); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+.node.focused { border-color:var(--blue); }
+.node-hdr { padding:7px 10px; background:var(--raised); border-bottom:1px solid var(--border);
+            display:flex; flex-direction:column; gap:2px; }
+.nh-title { font-size:11px; color:var(--blue); font-weight:600; }
+.nh-sub   { font-size:10px; color:var(--muted); }
+.node-body { overflow-y:auto; max-height:min(520px, calc(100vh - 160px)); }
+.pte-row { display:flex; align-items:center; gap:5px; padding:3px 8px; cursor:pointer;
+           border-bottom:1px solid rgba(46,50,72,.25); transition:background .07s;
+           border-left:2px solid transparent; }
+.pte-row:last-child { border-bottom:none; }
+.pte-row:hover { background:var(--raised); }
+.pte-row.active   { background:rgba(107,156,247,.10); border-left-color:var(--blue); }
+.pte-row.sel-leaf { background:rgba(78,201,148,.08);  border-left-color:var(--green); }
+.pte-row.inv      { opacity:.3; }
+.pr-idx  { font-size:10px; color:var(--muted); width:26px; text-align:right; flex-shrink:0; }
+.pr-va   { font-size:10px; color:var(--dim); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pr-oa   { font-size:10px; color:var(--yellow); flex-shrink:0; }
+.pr-arr  { font-size:10px; color:var(--blue); flex-shrink:0; }
+.node-empty { padding:12px; font-size:11px; color:var(--muted); }
+.node-missing { padding:12px; font-size:11px; color:var(--red); }
+
+/* badge */
+.badge { display:inline-block; padding:1px 5px; border-radius:3px;
+         font-size:9px; font-weight:700; letter-spacing:.3px; flex-shrink:0; }
+.b-ptr { background:rgba(107,156,247,.15); color:var(--blue); }
+.b-blk { background:rgba(232,164,74,.15);  color:var(--orange); }
+.b-pge { background:rgba(78,201,148,.15);  color:var(--green); }
+.b-inv { background:rgba(74,80,104,.20);   color:var(--muted); }
+
+/* diagram toolbar (inv toggle) */
+#diag-toolbar { position:absolute; top:8px; right:8px; display:flex; gap:6px; z-index:5; }
+.pill { font:11px/1 var(--mono); color:var(--dim); background:var(--surface);
+        border:1px solid var(--border); padding:3px 9px; border-radius:20px;
+        cursor:pointer; transition:all .12s; }
+.pill:hover { border-color:var(--blue); color:var(--blue); }
+.pill.on { border-color:var(--blue); color:var(--blue); background:rgba(107,156,247,.1); }
+
+/* welcome */
+#welcome { display:flex; flex-direction:column; align-items:center; justify-content:center;
+           gap:10px; color:var(--muted); text-align:center; padding:48px;
+           min-width:300px; min-height:200px; }
+#welcome h2 { font-size:16px; font-weight:400; color:var(--dim); }
+#welcome p  { font-size:12px; max-width:380px; }
+#welcome code { color:var(--cyan); }
+
+/* ── decoder / detail pane (always visible) ── */
+#dpane { flex-shrink:0; width:292px; border-left:1px solid var(--border);
+         background:var(--surface); display:flex; flex-direction:column; }
+#dhdr { flex-shrink:0; padding:6px 12px; border-bottom:1px solid var(--border);
+        display:flex; align-items:center; justify-content:space-between; }
+#dtitle { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; }
+#dclose { background:none; border:none; color:var(--muted); cursor:pointer;
+          font-size:15px; padding:0 2px; line-height:1; }
+#dclose:hover { color:var(--text); }
+/* ── decoder input bar ── */
+#dec-bar { flex-shrink:0; padding:8px 10px; border-bottom:1px solid var(--border);
+           background:var(--bg); display:flex; flex-direction:column; gap:5px; }
+#dec-input { width:100%; background:var(--raised); border:1px solid var(--border);
+             color:var(--cyan); font:11px/1.4 var(--mono); padding:5px 8px;
+             border-radius:var(--r); outline:none; transition:border-color .15s; }
+#dec-input:focus { border-color:var(--blue); }
+#dec-input::placeholder { color:var(--muted); font-style:italic; font-size:10px; }
+#dec-row2 { display:flex; align-items:center; gap:6px; }
+#dec-lvl { flex:1; font-size:11px; padding:3px 5px; }
+#dec-status { font-size:11px; flex-shrink:0; min-width:16px; text-align:center; }
+#dec-status.ok  { color:var(--green); }
+#dec-status.err { color:var(--red); }
+#dec-hint { display:flex; align-items:center; justify-content:center; flex:1;
+            font-size:11px; color:var(--muted); padding:20px 16px;
+            text-align:center; line-height:1.7; }
+#dbody { padding:12px; flex:1; overflow-y:auto; display:none; }
+.ds { margin-bottom:12px; }
+.dt { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px;
+      padding-bottom:4px; border-bottom:1px solid var(--border); margin-bottom:6px; }
+.dr { display:flex; justify-content:space-between; align-items:baseline; padding:2px 0; gap:8px; }
+.dk { color:var(--dim); font-size:11px; flex-shrink:0; }
+.dv { font-size:11px; text-align:right; }
+.dv.addr { color:var(--yellow); }
+.dv.set  { color:var(--green); }
+.dv.off  { color:var(--muted); }
+.draw { color:var(--yellow); font-size:11px; background:var(--raised);
+        padding:5px 8px; border-radius:var(--r); word-break:break-all; margin-bottom:6px; }
+.bwrap  { overflow-x:auto; margin-top:4px; }
+.bstrip { display:flex; gap:0; width:max-content; border-radius:3px; overflow:visible; }
+.bf     { display:flex; flex-direction:column; align-items:center;
+          border-right:1px solid var(--bg); flex-shrink:0; }
+.bf:last-child { border-right:none; }
+.bfl { font-size:7px; color:var(--bg); padding:1px 2px; width:100%; text-align:center; white-space:nowrap; overflow:hidden; }
+.bfv { font-size:9px; padding:1px 2px; width:100%; text-align:center; background:var(--raised); color:var(--dim); }
+.f-oa  { background:#1a3050; } .f-oa  .bfl { background:var(--blue); }
+.f-ctl { background:#2a2010; } .f-ctl .bfl { background:var(--yellow); }
+.f-rwx { background:#1a2e1a; } .f-rwx .bfl { background:var(--green); }
+.f-res { background:var(--raised); } .f-res .bfl { background:var(--muted); }
+.f-up  { background:#2a1a40; } .f-up  .bfl { background:var(--purple); }
+
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:var(--bg); }
+::-webkit-scrollbar-thumb { background:var(--raised); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--border); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="arch-tabs">
+    <button class="arch-tab on" data-arch="aarch64">AArch64</button>
+    <button class="arch-tab"    data-arch="riscv">RISC-V</button>
+  </div>
+  <div class="vsep"></div>
+  <div class="field">
+    <label class="fl" id="addr-lbl">TTBRn_ELx (PA)</label>
+    <input type="text" id="in-addr" placeholder="0x1000" style="width:190px">
+  </div>
+  <div id="cfg-aa" style="display:flex;gap:10px;align-items:flex-end">
+    <div class="field">
+      <label class="fl">Granule</label>
+      <select id="in-gran">
+        <option value="4096">4K</option>
+        <option value="16384">16K</option>
+        <option value="65536">64K</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="fl">VA bits</label>
+      <select id="in-vabits">
+        <option value="52">52</option><option value="48" selected>48</option>
+        <option value="47">47</option><option value="46">46</option>
+        <option value="45">45</option><option value="44">44</option>
+        <option value="43">43</option><option value="42">42</option>
+        <option value="41">41</option><option value="40">40</option>
+        <option value="39">39</option><option value="38">38</option>
+        <option value="37">37</option><option value="36">36</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="fl">EL</label>
+      <select id="in-el">
+        <option value="1">EL1</option>
+        <option value="2">EL2</option>
+        <option value="3">EL3</option>
+      </select>
+    </div>
+  </div>
+  <div id="cfg-rv" style="display:none;align-items:flex-end">
+    <div class="field">
+      <label class="fl">Mode</label>
+      <select id="in-rvmode">
+        <option value="sv32">Sv32  (RV32, 2-level)</option>
+        <option value="sv39" selected>Sv39  (RV64, 3-level)</option>
+        <option value="sv48">Sv48  (RV64, 4-level)</option>
+        <option value="sv57">Sv57  (RV64, 5-level)</option>
+      </select>
+    </div>
+  </div>
+  <button id="walk">Walk ↵</button>
+</div>
+
+<div id="main">
+  <!-- left: hex dump input -->
+  <div id="lpane">
+    <div id="lpane-hdr">
+      <span>Hex Dump</span>
+      <div class="lhdr-right">
+        <input type="text" id="in-off" placeholder="offset 0x0" style="width:88px;font-size:11px;padding:3px 6px">
+        <label class="load-btn" for="finput">Load file</label>
+        <input type="file" id="finput" accept=".xxd,.txt,.hex,.log,.dump">
+      </div>
+    </div>
+    <textarea id="dump-text" placeholder="Paste xxd / hexdump -C output here, or load a file…&#10;&#10;Examples:&#10;  xxd -a firmware.bin > dump.xxd&#10;  hexdump -C mem.bin > dump.hex"></textarea>
+    <div id="dump-status">No dump loaded</div>
+  </div>
+
+  <!-- right: diagram navigator -->
+  <div id="rpane">
+    <div id="rnavbar">
+      <span id="nb-hint">Paste a hex dump and click Walk.</span>
+    </div>
+    <div id="rpane-body">
+      <div id="diagram-scroll">
+        <div id="diag-toolbar">
+          <button class="pill" id="inv-btn">show invalid</button>
+        </div>
+        <div id="diagram-content">
+          <div id="welcome">
+            <h2>No dump loaded</h2>
+            <p>Paste a hex dump on the left, enter the root table address, and click <strong>Walk</strong>.</p>
+            <p style="margin-top:8px">Formats: <code>xxd -a</code> · <code>hexdump -C</code> · plain <code>addr: hexdata</code></p>
+            <p style="margin-top:6px;color:var(--dim)">RISC-V: enter the raw <code>satp</code> CSR value.</p>
+          </div>
+        </div>
+        <svg id="arrows"></svg>
+      </div>
+      <div id="dpane">
+        <div id="dhdr">
+          <span id="dtitle">PTE Decoder</span>
+          <button id="dclose" title="Clear">×</button>
+        </div>
+        <div id="dec-bar">
+          <input type="text" id="dec-input"
+            placeholder="0x… · c0 00 40 00 … · 0x1000: c0 00 …">
+          <div id="dec-row2">
+            <label class="fl" style="align-self:center;white-space:nowrap">Level</label>
+            <select id="dec-lvl"></select>
+            <span id="dec-status"></span>
+          </div>
+        </div>
+        <div id="dec-hint">Enter a hex value or paste a hex dump line above to decode a PTE.<br><br>Clicking any entry in the diagram fills this input automatically.</div>
+        <div id="dbody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ══ Memory ════════════════════════════════════════════════════════════════════
+
+class Memory {
+  constructor() { this._s = []; }
+  add(base, bytes) {
+    if (this._s.length) {
+      const L = this._s[this._s.length - 1];
+      if (L.base + L.data.length === base) {
+        const m = new Uint8Array(L.data.length + bytes.length);
+        m.set(L.data); m.set(bytes, L.data.length); L.data = m; return;
+      }
+    }
+    this._s.push({ base, data: new Uint8Array(bytes) });
+  }
+  readN(addr, n) {
+    for (const { base, data } of this._s) {
+      const off = addr - base;
+      if (off >= 0 && off + n <= data.length) {
+        let v = 0n;
+        for (let i = 0; i < n; i++) v |= BigInt(data[off + i]) << BigInt(8 * i);
+        return v;
+      }
+    }
+    return null;
+  }
+  read64(addr) { return this.readN(addr, 8); }
+  read32(addr) { return this.readN(addr, 4); }
+  has(addr) { return this._s.some(({ base, data }) => addr >= base && addr < base + data.length); }
+  get bytes() { return this._s.reduce((n, s) => n + s.data.length, 0); }
+  get segments() { return this._s.length; }
+}
+
+// ══ Hex dump parser ═══════════════════════════════════════════════════════════
+
+const RE_LINE = /^(?:0x)?([0-9a-fA-F]+)[:\s]\s*((?:[0-9a-fA-F]{2}\s*)+)/;
+
+function parseDump(text, offset = 0n) {
+  const mem = new Memory();
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line || line[0] === '#') continue;
+    const m = RE_LINE.exec(line);
+    if (!m) continue;
+    try {
+      const base = Number(BigInt('0x' + m[1]) + offset);
+      const hex  = m[2].replace(/\s+/g, '');
+      const len  = Math.floor(hex.length / 2);
+      const buf  = new Uint8Array(len);
+      for (let i = 0; i < len; i++) buf[i] = parseInt(hex.slice(i*2, i*2+2), 16);
+      if (len > 0) mem.add(base, buf);
+    } catch {}
+  }
+  return mem;
+}
+
+// ══ AArch64 ═══════════════════════════════════════════════════════════════════
+
+const AA_AP = ['RW/--','RW/RW','RO/--','RO/RO'];
+const AA_SH = ['NSH','—','OSH','ISH'];
+
+class AADesc {
+  constructor(raw, level, gs) {
+    this.raw = raw; this.level = level;
+    if (!(raw & 1n)) { this.kind = 'invalid'; this.oa = 0n; return; }
+    const tb = !!(raw & 2n);
+    const pm = (1n << 48n) - 1n;
+    const G  = BigInt(gs);
+    const bs = G + BigInt((3 - level) * (gs - 3));
+    if (level === 3) {
+      this.kind = tb ? 'page' : 'invalid';
+      this.oa   = raw & (pm & ~((1n << G) - 1n));
+    } else if (tb) {
+      this.kind = 'table';
+      this.oa   = raw & (pm & ~((1n << G) - 1n));
+    } else {
+      this.kind = 'block';
+      this.oa   = raw & (pm & ~((1n << bs) - 1n));
+    }
+    this.ap = Number((raw >> 6n) & 3n); this.sh = Number((raw >> 8n) & 3n);
+    this.af = !!(raw & (1n << 10n)); this.ng = !!(raw & (1n << 11n));
+    this.attrIdx = Number((raw >> 2n) & 7n);
+    this.pxn = !!(raw & (1n << 53n)); this.uxn = !!(raw & (1n << 54n));
+    this.cont = !!(raw & (1n << 52n)); this.dbm = !!(raw & (1n << 51n));
+    this.nsT  = !!(raw & (1n << 63n)); this.pxnT = !!(raw & (1n << 59n));
+    this.uxnT = !!(raw & (1n << 60n)); this.apT  = Number((raw >> 61n) & 3n);
+  }
+  attrStr() {
+    const p = [AA_AP[this.ap], AA_SH[this.sh], `MAIR[${this.attrIdx}]`];
+    if (!this.af) p.push('!AF'); if (this.pxn) p.push('PXN');
+    if (this.uxn) p.push('UXN'); if (this.ng) p.push('nG');
+    if (this.cont) p.push('Cont'); if (this.dbm) p.push('DBM');
+    return p.join(' · ');
+  }
+  tableOvStr() {
+    const p = [];
+    if (this.nsT) p.push('NSTable'); if (this.uxnT) p.push('UXNTable');
+    if (this.pxnT) p.push('PXNTable'); if (this.apT) p.push(`APTable=${this.apT}`);
+    return p.join(' · ');
+  }
+}
+
+function aaGranShift(gran) { return {4096:12,16384:14,65536:16}[gran]; }
+function aaRootLevel(vaBits, gs) { return 4 - Math.ceil((vaBits - gs) / (gs - 3)); }
+function aaLevelShift(level, gs) { return gs + (3 - level) * (gs - 3); }
+function aaEntryCount(level, vaBits, gs, root) {
+  if (level === root) return 1 << (vaBits - gs - (3 - level) * (gs - 3));
+  return 1 << (gs - 3);
+}
+
+// ══ RISC-V ════════════════════════════════════════════════════════════════════
+
+const RV_CFG = {
+  sv32: { levels:2, idxBits:10, is32:true  },
+  sv39: { levels:3, idxBits:9,  is32:false },
+  sv48: { levels:4, idxBits:9,  is32:false },
+  sv57: { levels:5, idxBits:9,  is32:false },
+};
+
+function rvCfg(mode)            { return RV_CFG[mode]; }
+function rvRootLevel(mode)      { return rvCfg(mode).levels - 1; }
+function rvLevelShift(lvl,mode) { return 12 + lvl * rvCfg(mode).idxBits; }
+function rvEntryCount(mode)     { return 1 << rvCfg(mode).idxBits; }
+
+class RVDesc {
+  constructor(raw, rvLevel, mode) {
+    this.raw = raw; this.rvLevel = rvLevel; this.mode = mode;
+    const cfg = rvCfg(mode);
+    this.v = !!(raw & 1n);
+    if (!this.v) { this.kind = 'invalid'; this.oa = 0n; this.ppn = 0n; return; }
+    this.r = !!(raw & 2n); this.w = !!(raw & 4n);  this.x = !!(raw & 8n);
+    this.u = !!(raw & 16n); this.g = !!(raw & 32n); this.a = !!(raw & 64n); this.d = !!(raw & 128n);
+    this.rsw = Number((raw >> 8n) & 3n);
+    if (!this.r && this.w) { this.kind = 'invalid'; this.oa = 0n; this.ppn = 0n; return; }
+    this.ppn = cfg.is32 ? (raw >> 10n) & 0x3FFFFFn : (raw >> 10n) & 0xFFFFFFFFFFFn;
+    const isLeaf = this.r || this.x;
+    if (isLeaf) {
+      this.kind = rvLevel > 0 ? 'superpage' : 'leaf';
+      if (rvLevel > 0) {
+        const subBits = BigInt(cfg.idxBits * rvLevel);
+        this.oa = (this.ppn & ~((1n << subBits) - 1n)) << 12n;
+      } else {
+        this.oa = this.ppn << 12n;
+      }
+    } else {
+      if (rvLevel === 0) { this.kind = 'invalid'; this.oa = 0n; }
+      else { this.kind = 'pointer'; this.oa = this.ppn << 12n; }
+    }
+  }
+  attrStr() {
+    const p = [];
+    if (this.r) p.push('R'); if (this.w) p.push('W'); if (this.x) p.push('X');
+    if (this.u) p.push('U'); if (this.g) p.push('G');
+    if (this.a) p.push('A'); if (this.d) p.push('D');
+    return p.join(' ');
+  }
+}
+
+function rvRootPA(str) {
+  const v = BigInt(/^0x/i.test(str) ? str : '0x' + str);
+  const top = Number(v >> 60n) & 0xF;
+  if (top === 8 || top === 9 || top === 10) {
+    document.getElementById('in-rvmode').value = {8:'sv39',9:'sv48',10:'sv57'}[top];
+    return Number((v & 0xFFFFFFFFFFFn) << 12n);
+  }
+  if ((v >> 31n) === 1n && v < 0x100000000n) {
+    document.getElementById('in-rvmode').value = 'sv32';
+    return Number((v & 0x3FFFFFn) << 12n);
+  }
+  return Number(v);
+}
+
+// ══ Helpers ═══════════════════════════════════════════════════════════════════
+
+const h64  = n => '0x' + n.toString(16).padStart(16,'0');
+const hPA  = n => { const s = n.toString(16); return '0x' + s.padStart(Math.max(s.length,8),'0'); };
+const esc  = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function fmtSize(shift) {
+  if (shift>=30) return (1<<(shift-30))+' GB';
+  if (shift>=20) return (1<<(shift-20))+' MB';
+  if (shift>=10) return (1<<(shift-10))+' KB';
+  return (1<<shift)+' B';
+}
+function isNavigable(d) { return d.kind==='table'||d.kind==='pointer'; }
+function isMapping(d)   { return ['block','page','leaf','superpage'].includes(d.kind); }
+function descBadge(d) {
+  switch(d.kind) {
+    case 'table':     return {text:'TABLE', cls:'b-ptr'};
+    case 'block':     return {text:'BLOCK', cls:'b-blk'};
+    case 'page':      return {text:'PAGE',  cls:'b-pge'};
+    case 'pointer':   return {text:'PTR',   cls:'b-ptr'};
+    case 'superpage': return {text:'SUPER', cls:'b-blk'};
+    case 'leaf':      return {text:'LEAF',  cls:'b-pge'};
+    default:          return {text:'INV',   cls:'b-inv'};
+  }
+}
+
+// ══ App state ════════════════════════════════════════════════════════════════
+
+const S = {
+  arch: 'aarch64',
+  mem: null,
+  gran:4096, gs:12, vaBits:48, el:1, aaRoot:1,
+  rvMode:'sv39',
+  // cols: [{tablePA, level, vaBase, label, activeIdx}]
+  cols: [],
+  showInvalid: false,
+  detailCol: -1, detailIdx: -1,
+};
+
+// ══ Entry reading ════════════════════════════════════════════════════════════
+
+function readEntries(frame) {
+  const entries = [];
+  if (S.arch === 'aarch64') {
+    const ls = aaLevelShift(frame.level, S.gs);
+    const n  = aaEntryCount(frame.level, S.vaBits, S.gs, S.aaRoot);
+    for (let idx = 0; idx < n; idx++) {
+      const raw  = S.mem.read64(frame.tablePA + idx * 8) ?? 0n;
+      const desc = new AADesc(raw, frame.level, S.gs);
+      const va0  = frame.vaBase | (BigInt(idx) << BigInt(ls));
+      entries.push({ idx, desc, va0, va1: va0 + (1n << BigInt(ls)) - 1n, ls });
+    }
+  } else {
+    const mode = S.rvMode;
+    const cfg  = rvCfg(mode);
+    const ls   = rvLevelShift(frame.level, mode);
+    const n    = rvEntryCount(mode);
+    for (let idx = 0; idx < n; idx++) {
+      const addr = frame.tablePA + idx * (cfg.is32 ? 4 : 8);
+      const raw  = (cfg.is32 ? S.mem.read32(addr) : S.mem.read64(addr)) ?? 0n;
+      const desc = new RVDesc(raw, frame.level, mode);
+      const va0  = frame.vaBase | (BigInt(idx) << BigInt(ls));
+      entries.push({ idx, desc, va0, va1: va0 + (1n << BigInt(ls)) - 1n, ls });
+    }
+  }
+  return entries;
+}
+
+// ══ Diagram rendering ════════════════════════════════════════════════════════
+
+function renderDiagram() {
+  const content = document.getElementById('diagram-content');
+  content.innerHTML = '';
+
+  if (!S.mem || !S.cols.length) {
+    content.innerHTML = `<div id="welcome">
+      <h2>Ready</h2>
+      <p>Enter the root table address and click <strong>Walk</strong>.</p>
+    </div>`;
+    clearArrows();
+    renderNav();
+    return;
+  }
+
+  for (let i = 0; i < S.cols.length; i++) {
+    const col = document.createElement('div');
+    col.className = 'pt-col';
+    col.id = `col-${i}`;
+    col.appendChild(buildNode(S.cols[i], i));
+    content.appendChild(col);
+
+    if (i < S.cols.length - 1) {
+      const gap = document.createElement('div');
+      gap.className = 'col-gap';
+      content.appendChild(gap);
+    }
+  }
+
+  renderNav();
+  requestAnimationFrame(() => requestAnimationFrame(drawArrows));
+}
+
+function buildNode(col, colIdx) {
+  const node = document.createElement('div');
+  node.className = 'node' + (colIdx === S.cols.length - 1 ? ' focused' : '');
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.className = 'node-hdr';
+
+  const body = document.createElement('div');
+  body.className = 'node-body';
+
+  if (!S.mem.has(col.tablePA)) {
+    hdr.innerHTML = `<div class="nh-title">${esc(col.label)}</div>
+      <div class="nh-sub">@ ${hPA(col.tablePA)}</div>`;
+    body.innerHTML = `<div class="node-missing">Address not in dump</div>`;
+  } else {
+    const all    = readEntries(col);
+    const valid  = all.filter(e => e.desc.kind !== 'invalid');
+    const ptrs   = valid.filter(e => isNavigable(e.desc)).length;
+    const maps   = valid.filter(e => isMapping(e.desc)).length;
+    const invcnt = all.length - valid.length;
+
+    hdr.innerHTML = `<div class="nh-title">${esc(col.label)}</div>
+      <div class="nh-sub">@ ${hPA(col.tablePA)} &nbsp;·&nbsp; ${ptrs} ptr &nbsp; ${maps} map &nbsp; ${invcnt} inv</div>`;
+
+    const rows = S.showInvalid ? all : valid;
+    if (rows.length === 0) {
+      body.innerHTML = `<div class="node-empty">No entries to display</div>`;
+    } else {
+      for (const {idx, desc, va0, va1, ls} of rows) {
+        body.appendChild(buildPteRow(col, colIdx, idx, desc, va0, va1, ls));
+      }
+    }
+  }
+
+  node.appendChild(hdr);
+  node.appendChild(body);
+  return node;
+}
+
+function buildPteRow(col, colIdx, idx, desc, va0, va1, ls) {
+  const row = document.createElement('div');
+  row.className = 'pte-row';
+  row.id = `row-${colIdx}-${idx}`;
+
+  const isInv = desc.kind === 'invalid';
+  const isNav = isNavigable(desc);
+  const isLf  = isMapping(desc);
+
+  if (col.activeIdx === idx && isNav) row.classList.add('active');
+  if (S.detailCol === colIdx && S.detailIdx === idx && isLf) row.classList.add('sel-leaf');
+  if (isInv) row.classList.add('inv');
+
+  const {text, cls} = descBadge(desc);
+  const vaShort = '…' + va0.toString(16).slice(-8);
+
+  let rightHtml = '';
+  if (isNav) {
+    rightHtml = `<span class="pr-arr">→</span>`;
+  } else if (!isInv) {
+    const oaShort = '…' + desc.oa.toString(16).padStart(10,'0').slice(-8);
+    rightHtml = `<span class="pr-oa">${oaShort}</span>`;
+  }
+
+  row.innerHTML = `
+    <span class="pr-idx">${idx}</span>
+    <span class="badge ${cls}">${text}</span>
+    <span class="pr-va">${isInv ? '' : vaShort + ' ' + fmtSize(ls)}</span>
+    ${rightHtml}`;
+
+  row.addEventListener('click', () => {
+    if (isNav) {
+      enterLevel(colIdx, idx, desc, va0);
+    } else {
+      selectLeaf(colIdx, idx, desc, va0, va1);
+    }
+  });
+
+  return row;
+}
+
+// ══ Navigation ═══════════════════════════════════════════════════════════════
+
+function enterLevel(colIdx, idx, desc, va0) {
+  const col    = S.cols[colIdx];
+  const nextLvl = S.arch === 'aarch64' ? col.level + 1 : col.level - 1;
+  const nextPA  = Number(desc.oa);
+
+  S.cols[colIdx].activeIdx = idx;
+  S.cols = S.cols.slice(0, colIdx + 1);
+  S.cols.push({
+    tablePA: nextPA,
+    level:   nextLvl,
+    vaBase:  va0,
+    label:   `L${col.level}[${idx}]`,
+    activeIdx: null,
+  });
+
+  S.detailCol = -1; S.detailIdx = -1;
+  closeDetail();
+  renderDiagram();
+
+  setTimeout(() => {
+    const sc = document.getElementById('diagram-scroll');
+    sc.scrollLeft = sc.scrollWidth;
+  }, 60);
+}
+
+function selectLeaf(colIdx, idx, desc, va0, va1) {
+  S.detailCol = colIdx; S.detailIdx = idx;
+  // Remove any deeper columns (clicking a leaf in a non-last column resets)
+  S.cols = S.cols.slice(0, colIdx + 1);
+  S.cols[colIdx].activeIdx = null;
+  renderDiagram();
+  openDetail(colIdx, idx, desc, va0, va1);
+}
+
+// ══ Breadcrumb ═══════════════════════════════════════════════════════════════
+
+function renderNav() {
+  const bar = document.getElementById('rnavbar');
+  bar.innerHTML = '';
+
+  if (!S.cols.length) {
+    bar.innerHTML = '<span id="nb-hint">Paste a hex dump and click Walk.</span>';
+    return;
+  }
+
+  if (S.cols.length > 1) {
+    const b = document.createElement('button');
+    b.className = 'back-btn';
+    b.textContent = '← back';
+    b.onclick = () => { S.cols.pop(); S.detailCol=-1; S.detailIdx=-1; closeDetail(); renderDiagram(); };
+    bar.appendChild(b);
+  }
+
+  S.cols.forEach((c, i) => {
+    if (i > 0) { const s=document.createElement('span'); s.className='csep'; s.textContent='›'; bar.appendChild(s); }
+    const sp = document.createElement('span');
+    sp.className = 'crumb' + (i === S.cols.length-1 ? ' cur' : '');
+    sp.textContent = c.label;
+    if (i < S.cols.length-1) {
+      sp.onclick = () => {
+        S.cols = S.cols.slice(0, i+1);
+        S.cols[i].activeIdx = null;
+        S.detailCol=-1; S.detailIdx=-1;
+        closeDetail(); renderDiagram();
+      };
+    }
+    bar.appendChild(sp);
+  });
+}
+
+// ══ Arrow drawing ════════════════════════════════════════════════════════════
+
+function clearArrows() {
+  const svg = document.getElementById('arrows');
+  svg.setAttribute('width', 0); svg.setAttribute('height', 0);
+  svg.innerHTML = '';
+}
+
+function drawArrows() {
+  const scroll  = document.getElementById('diagram-scroll');
+  const svg     = document.getElementById('arrows');
+
+  svg.setAttribute('width',  scroll.scrollWidth);
+  svg.setAttribute('height', scroll.scrollHeight);
+  svg.innerHTML = '';
+
+  const sRect = scroll.getBoundingClientRect();
+
+  function rel(el) {
+    const r = el.getBoundingClientRect();
+    return {
+      left:   r.left   - sRect.left + scroll.scrollLeft,
+      top:    r.top    - sRect.top  + scroll.scrollTop,
+      right:  r.right  - sRect.left + scroll.scrollLeft,
+      bottom: r.bottom - sRect.top  + scroll.scrollTop,
+      w:      r.width,
+      h:      r.height,
+    };
+  }
+
+  function mkPath(x1,y1,x2,y2,color,opacity) {
+    const dx = Math.abs(x2-x1)*0.5;
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d', `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`);
+    p.setAttribute('stroke', color);
+    p.setAttribute('stroke-width','1.5');
+    p.setAttribute('fill','none');
+    p.setAttribute('opacity', opacity);
+    svg.appendChild(p);
+    // arrowhead
+    const ar = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    ar.setAttribute('points', `${x2},${y2} ${x2-7},${y2-4} ${x2-7},${y2+4}`);
+    ar.setAttribute('fill', color);
+    ar.setAttribute('opacity', opacity);
+    svg.appendChild(ar);
+  }
+
+  for (let i = 0; i + 1 < S.cols.length; i++) {
+    const col = S.cols[i];
+    if (col.activeIdx === null || col.activeIdx === undefined) continue;
+
+    const srcRow = document.getElementById(`row-${i}-${col.activeIdx}`);
+    const tgtHdr = document.querySelector(`#col-${i+1} .node-hdr`);
+    if (!srcRow || !tgtHdr) continue;
+
+    const sr = rel(srcRow);
+    const tr = rel(tgtHdr);
+
+    mkPath(sr.right, sr.top + sr.h/2, tr.left, tr.top + tr.h/2, '#6b9cf7', '0.65');
+  }
+
+  // Arrow from selected leaf row to decoder input bar
+  if (S.detailCol >= 0 && S.detailIdx >= 0) {
+    const srcRow = document.getElementById(`row-${S.detailCol}-${S.detailIdx}`);
+    const decBar = document.getElementById('dec-bar');
+    if (srcRow && decBar) {
+      const sr = rel(srcRow);
+      const dr = rel(decBar);
+      mkPath(sr.right, sr.top + sr.h/2, dr.left, dr.top + dr.h/2, '#4ec994', '0.55');
+    }
+  }
+}
+
+// ══ Decoder ═══════════════════════════════════════════════════════════════════
+
+// Populate the Level selector based on current arch config.
+function initDecLevel() {
+  const sel = document.getElementById('dec-lvl');
+  const prev = +sel.value;
+  sel.innerHTML = '';
+  if (S.arch === 'aarch64') {
+    const gs  = aaGranShift(+document.getElementById('in-gran').value);
+    const vab = +document.getElementById('in-vabits').value;
+    const root = aaRootLevel(vab, gs);
+    for (let l = root; l <= 3; l++) sel.add(new Option(`L${l}`, l, false, l === prev || l === 3));
+  } else {
+    const mode = document.getElementById('in-rvmode').value;
+    const rl   = rvRootLevel(mode);
+    for (let l = rl; l >= 0; l--) sel.add(new Option(`L${l}`, l, false, l === prev || l === 0));
+  }
+}
+
+// Parse a string as a PTE raw value (little-endian bytes) or plain hex number.
+function extractRaw(str) {
+  str = str.trim();
+  if (!str) return null;
+  const isSv32 = S.arch === 'riscv' && rvCfg(document.getElementById('in-rvmode').value).is32;
+  const pteBytes = isSv32 ? 4 : 8;
+
+  function readLE(hex) {
+    const len = Math.min(hex.length >> 1, pteBytes);
+    if (len === 0) return null;
+    let v = 0n;
+    for (let i = 0; i < len; i++) v |= BigInt(parseInt(hex.slice(i*2, i*2+2), 16)) << BigInt(8*i);
+    return v;
+  }
+
+  // 1. Bare hex bytes WITH spaces: "c0 00 40 00 00 00 c0 00"
+  //    (no-space strings fall through to plain-hex to avoid ambiguity)
+  if (/^[0-9a-fA-F]{2}(\s+[0-9a-fA-F]{2})+$/.test(str)) {
+    return readLE(str.replace(/\s+/g, ''));
+  }
+
+  // 2. Hex dump line with address: "0x1000: c0 00 …"  or  "00001000  c0 00 …"
+  const lm = RE_LINE.exec(str);
+  if (lm) {
+    const v = readLE(lm[2].replace(/\s+/g, ''));
+    if (v !== null) return v;
+  }
+
+  // 3. Plain hex number: "0xc000000040000000" or "c000000040000000"
+  const compact = str.replace(/\s+/g, '');
+  try { return BigInt(/^0x/i.test(compact) ? compact : '0x' + compact); } catch {}
+
+  return null;
+}
+
+// Decode whatever is in #dec-input and render into #dbody.
+function doDecode() {
+  const input  = document.getElementById('dec-input');
+  const status = document.getElementById('dec-status');
+  const hint   = document.getElementById('dec-hint');
+  const body   = document.getElementById('dbody');
+
+  if (!input.value.trim()) {
+    status.textContent = ''; status.className = '';
+    hint.style.display = ''; body.style.display = 'none'; body.innerHTML = '';
+    return;
+  }
+
+  const raw = extractRaw(input.value);
+  if (raw === null) {
+    status.textContent = '✗'; status.className = 'err'; return;
+  }
+
+  const lvl = +document.getElementById('dec-lvl').value;
+  let desc;
+  if (S.arch === 'aarch64') {
+    const gs = aaGranShift(+document.getElementById('in-gran').value);
+    desc = new AADesc(raw, lvl, gs);
+  } else {
+    const mode = document.getElementById('in-rvmode').value;
+    S.rvMode = mode;
+    desc = new RVDesc(raw, lvl, mode);
+  }
+
+  status.textContent = '✓'; status.className = 'ok';
+  renderDecodedBody(raw, desc, null, null, null);
+}
+
+// Shared renderer — writes into #dbody.
+// va0/va1/idx may be null (direct decode) or BigInt/number (from diagram navigation).
+function renderDecodedBody(raw, desc, idx, va0, va1) {
+  const hint = document.getElementById('dec-hint');
+  const body = document.getElementById('dbody');
+  hint.style.display = 'none';
+  body.style.display = '';
+
+  const isSv32 = S.arch === 'riscv' && rvCfg(S.rvMode).is32;
+  const rawHex = isSv32
+    ? '0x' + (raw & 0xFFFFFFFFn).toString(16).padStart(8,'0')
+    : h64(raw);
+
+  const {text, cls} = descBadge(desc);
+  const colMap = {'b-ptr':'var(--blue)','b-pge':'var(--green)','b-blk':'var(--orange)','b-inv':'var(--muted)'};
+  const kindColor = colMap[cls] ?? 'var(--text)';
+  const lvlStr = S.arch==='aarch64' ? 'L'+desc.level : 'L'+desc.rvLevel+' ('+S.rvMode+')';
+
+  let html = `<div class="ds">
+    <div class="dt">Descriptor</div>
+    <div class="draw">${rawHex}</div>
+    <div class="dr"><span class="dk">Kind</span><span class="dv" style="color:${kindColor}">${text}</span></div>
+    <div class="dr"><span class="dk">Level</span><span class="dv">${lvlStr}</span></div>`;
+  if (idx !== null) html += `<div class="dr"><span class="dk">Index</span><span class="dv">${idx}</span></div>`;
+  html += `</div>`;
+
+  if (va0 !== null && va1 !== null && desc.kind !== 'invalid') {
+    html += `<div class="ds"><div class="dt">Address</div>
+      <div class="dr"><span class="dk">VA start</span><span class="dv addr">${h64(va0)}</span></div>
+      <div class="dr"><span class="dk">VA end</span><span class="dv addr">${h64(va1)}</span></div>
+      <div class="dr"><span class="dk">Output PA</span><span class="dv addr">${h64(desc.oa)}</span></div>
+    </div>`;
+  } else if (desc.kind !== 'invalid') {
+    html += `<div class="ds"><div class="dt">Address</div>
+      <div class="dr"><span class="dk">Output PA</span><span class="dv addr">${h64(desc.oa)}</span></div>
+    </div>`;
+  }
+
+  if (desc.kind === 'invalid') {
+    html += `<div style="font-size:11px;color:var(--muted);padding:4px 0">Invalid — ${S.arch==='riscv'?'V=0 or reserved combination':'bit[0]=0'}</div>`;
+  } else {
+    if (S.arch === 'aarch64') html += aaDetailFields(desc);
+    else                       html += rvDetailFields(desc);
+  }
+
+  html += `<div class="ds"><div class="dt">Raw bits</div><div class="bwrap"><div class="bstrip" id="bstrip"></div></div></div>`;
+  body.innerHTML = html;
+
+  if (S.arch === 'aarch64') renderAABits(raw);
+  else                       renderRVBits(raw, S.rvMode);
+}
+
+// ══ Detail panel ═════════════════════════════════════════════════════════════
+
+function openDetail(colIdx, idx, desc, va0, va1) {
+  // Sync decoder input to this entry's raw value
+  const isSv32 = S.arch === 'riscv' && rvCfg(S.rvMode).is32;
+  const rawHex = isSv32
+    ? '0x' + (desc.raw & 0xFFFFFFFFn).toString(16).padStart(8,'0')
+    : h64(desc.raw);
+  document.getElementById('dec-input').value = rawHex;
+
+  // Sync level selector
+  const lvlEl = document.getElementById('dec-lvl');
+  const lvl   = S.arch === 'aarch64' ? desc.level : desc.rvLevel;
+  if ([...lvlEl.options].some(o => +o.value === lvl)) lvlEl.value = lvl;
+
+  const st = document.getElementById('dec-status');
+  st.textContent = '✓'; st.className = 'ok';
+
+  renderDecodedBody(desc.raw, desc, idx, va0, va1);
+  requestAnimationFrame(() => requestAnimationFrame(drawArrows));
+}
+
+function aaDetailFields(desc) {
+  if (desc.kind === 'table') {
+    return `<div class="ds"><div class="dt">Table override</div>
+      ${dr('NSTable [63]',   desc.nsT  ? '1':'0', desc.nsT)}
+      ${dr('UXNTable [60]',  desc.uxnT ? '1':'0', desc.uxnT)}
+      ${dr('PXNTable [59]',  desc.pxnT ? '1':'0', desc.pxnT)}
+      ${dr('APTable [62:61]',desc.apT, false)}</div>`;
+  }
+  return `<div class="ds"><div class="dt">Memory attributes</div>
+    ${dr('AP[2:1]',    AA_AP[desc.ap])}
+    ${dr('SH[1:0]',    AA_SH[desc.sh])}
+    ${dr('MAIR index', desc.attrIdx)}
+    ${dr('AF [10]',    desc.af  ? '1 — set':'0 — not accessed', desc.af)}
+    ${dr('nG [11]',    +desc.ng,  desc.ng)}
+    ${dr('PXN [53]',   +desc.pxn, desc.pxn)}
+    ${dr('UXN [54]',   +desc.uxn, desc.uxn)}
+    ${dr('Cont [52]',  +desc.cont,desc.cont)}
+    ${dr('DBM [51]',   +desc.dbm, desc.dbm)}</div>`;
+}
+
+function rvDetailFields(desc) {
+  return `<div class="ds"><div class="dt">PTE flags</div>
+    ${dr('R [1]',+desc.r,desc.r)} ${dr('W [2]',+desc.w,desc.w)} ${dr('X [3]',+desc.x,desc.x)}
+    ${dr('U [4]',+desc.u,desc.u)} ${dr('G [5]',+desc.g,desc.g)}
+    ${dr('A [6]',desc.a?'1 — accessed':'0',desc.a)}
+    ${dr('D [7]',desc.d?'1 — dirty':'0',desc.d)}
+    ${dr('RSW [9:8]',desc.rsw)}
+    ${dr('PPN','0x'+desc.ppn.toString(16).padStart(11,'0'))}</div>`;
+}
+
+function dr(key, val, flag) {
+  const cls = flag===undefined ? '' : (flag ? ' set' : ' off');
+  return `<div class="dr"><span class="dk">${key}</span><span class="dv${cls}">${val}</span></div>`;
+}
+
+function closeDetail() {
+  S.detailCol = -1; S.detailIdx = -1;
+  document.getElementById('dec-input').value = '';
+  const st = document.getElementById('dec-status');
+  st.textContent = ''; st.className = '';
+  document.getElementById('dec-hint').style.display = '';
+  const body = document.getElementById('dbody');
+  body.style.display = 'none'; body.innerHTML = '';
+}
+
+// ── Bit strips ───────────────────────────────────────────────────────────────
+
+function makeBField(strip, label, bits, raw, cls) {
+  const w = Math.max(10, bits.length * 9);
+  const el = document.createElement('div');
+  el.className = `bf ${cls}`; el.style.cssText = `width:${w}px;min-width:${w}px`;
+  let v = 0n;
+  bits.forEach((b,i) => { v |= ((raw>>BigInt(b))&1n) << BigInt(bits.length-1-i); });
+  const vs = bits.length===1 ? v.toString() : v.toString(16).padStart(Math.ceil(bits.length/4),'0');
+  el.innerHTML = `<div class="bfl">${label}</div><div class="bfv">${vs}</div>`;
+  strip.appendChild(el);
+}
+
+function renderAABits(raw) {
+  const strip = document.getElementById('bstrip');
+  const F = (l,b,c) => makeBField(strip,l,b,raw,c);
+  F('[63]',[63],'f-up'); F('[62:59]',[62,61,60,59],'f-up');
+  F('[58:55]',[58,57,56,55],'f-res'); F('UXN',[54],'f-up'); F('PXN',[53],'f-up');
+  F('Cont',[52],'f-up'); F('DBM',[51],'f-up'); F('[50:48]',[50,49,48],'f-res');
+  F('OA[47:12]',Array.from({length:36},(_,i)=>47-i),'f-oa');
+  F('nG',[11],'f-ctl'); F('AF',[10],'f-ctl'); F('SH',[9,8],'f-ctl');
+  F('AP',[7,6],'f-ctl'); F('NS',[5],'f-ctl'); F('Idx',[4,3,2],'f-ctl'); F('T/V',[1,0],'f-ctl');
+}
+
+function renderRVBits(raw, mode) {
+  const strip = document.getElementById('bstrip');
+  const cfg = rvCfg(mode);
+  const F = (l,b,c) => makeBField(strip,l,b,raw,c);
+  if (cfg.is32) {
+    F('PPN[1]',Array.from({length:12},(_,i)=>31-i),'f-oa');
+    F('PPN[0]',Array.from({length:10},(_,i)=>19-i),'f-oa');
+  } else {
+    F('[63:54]',Array.from({length:10},(_,i)=>63-i),'f-res');
+    F('PPN[53:10]',Array.from({length:44},(_,i)=>53-i),'f-oa');
+  }
+  F('RSW',[9,8],'f-res'); F('D',[7],'f-rwx'); F('A',[6],'f-rwx');
+  F('G',[5],'f-rwx'); F('U',[4],'f-rwx'); F('X',[3],'f-rwx'); F('W',[2],'f-rwx');
+  F('R',[1],'f-rwx'); F('V',[0],'f-ctl');
+}
+
+// ══ Dump parsing ═════════════════════════════════════════════════════════════
+
+let _parseTimer = null;
+function scheduleParse() {
+  clearTimeout(_parseTimer);
+  _parseTimer = setTimeout(doParse, 300);
+}
+
+function doParse() {
+  const text = document.getElementById('dump-text').value;
+  const status = document.getElementById('dump-status');
+  if (!text.trim()) { S.mem = null; status.className=''; status.textContent='No dump loaded'; return; }
+  let off = 0n;
+  const ov = document.getElementById('in-off').value.trim();
+  if (ov) try { off = BigInt(/^0x/i.test(ov)?ov:'0x'+ov); } catch {}
+  S.mem = parseDump(text, off);
+  if (S.mem.bytes === 0) {
+    status.className='err'; status.textContent='Parse error — no valid lines found';
+  } else {
+    status.className='ok';
+    status.textContent=`${(S.mem.bytes/1024).toFixed(1)} KB · ${S.mem.segments} segment${S.mem.segments!==1?'s':''}`;
+  }
+}
+
+// ══ Walk ═════════════════════════════════════════════════════════════════════
+
+function doWalk() {
+  doParse(); // ensure latest text is parsed
+  if (!S.mem || S.mem.bytes === 0) { alert('No valid hex dump loaded.'); return; }
+  const addrStr = document.getElementById('in-addr').value.trim();
+  if (!addrStr) { alert('Enter a base address.'); return; }
+
+  let rootPA;
+  try {
+    if (S.arch === 'aarch64') {
+      rootPA = Number(BigInt(/^0x/i.test(addrStr) ? addrStr : '0x'+addrStr));
+    } else {
+      rootPA = rvRootPA(addrStr);
+    }
+  } catch { alert('Invalid address.'); return; }
+
+  if (S.arch === 'aarch64') {
+    S.gran   = +document.getElementById('in-gran').value;
+    S.gs     = aaGranShift(S.gran);
+    S.vaBits = +document.getElementById('in-vabits').value;
+    S.el     = +document.getElementById('in-el').value;
+    S.aaRoot = aaRootLevel(S.vaBits, S.gs);
+    S.cols   = [{ tablePA:rootPA, level:S.aaRoot, vaBase:0n,
+                  label:`Root (L${S.aaRoot})`, activeIdx:null }];
+  } else {
+    S.rvMode = document.getElementById('in-rvmode').value;
+    const rl = rvRootLevel(S.rvMode);
+    S.cols   = [{ tablePA:rootPA, level:rl, vaBase:0n,
+                  label:`Root (L${rl} / ${S.rvMode.toUpperCase()})`, activeIdx:null }];
+  }
+
+  S.detailCol=-1; S.detailIdx=-1;
+  closeDetail(); initDecLevel();
+  renderDiagram();
+}
+
+// ══ Arch switching ════════════════════════════════════════════════════════════
+
+function setArch(arch) {
+  S.arch = arch;
+  document.querySelectorAll('.arch-tab').forEach(t => t.classList.toggle('on', t.dataset.arch===arch));
+  document.getElementById('cfg-aa').style.display = arch==='aarch64' ? 'flex' : 'none';
+  document.getElementById('cfg-rv').style.display = arch==='riscv'   ? 'flex' : 'none';
+  document.getElementById('addr-lbl').textContent =
+    arch==='aarch64' ? 'TTBRn_ELx (PA)' : 'satp CSR  or  root PA';
+  document.getElementById('in-addr').placeholder =
+    arch==='aarch64' ? '0x1000' : '0x8000000000000001';
+  S.cols=[]; S.detailCol=-1; S.detailIdx=-1;
+  closeDetail(); initDecLevel(); renderDiagram();
+}
+
+// ══ File loading ═════════════════════════════════════════════════════════════
+
+function loadFile(file) {
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('dump-text').value = e.target.result;
+    doParse();
+  };
+  r.readAsText(file);
+}
+
+// ══ Events ════════════════════════════════════════════════════════════════════
+
+document.getElementById('finput').addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+document.getElementById('dump-text').addEventListener('input', scheduleParse);
+document.getElementById('in-off').addEventListener('change', doParse);
+document.getElementById('walk').addEventListener('click', doWalk);
+document.getElementById('in-addr').addEventListener('keydown', e => { if(e.key==='Enter') doWalk(); });
+document.getElementById('dclose').addEventListener('click', () => { closeDetail(); renderDiagram(); });
+document.getElementById('inv-btn').addEventListener('click', () => {
+  S.showInvalid = !S.showInvalid;
+  document.getElementById('inv-btn').classList.toggle('on', S.showInvalid);
+  renderDiagram();
+});
+document.querySelectorAll('.arch-tab').forEach(t => t.addEventListener('click', () => setArch(t.dataset.arch)));
+
+// Decoder events
+document.getElementById('dec-input').addEventListener('input', doDecode);
+document.getElementById('dec-lvl').addEventListener('change', doDecode);
+// Re-populate levels when config changes (affects level list / decoding semantics)
+document.getElementById('in-gran').addEventListener('change', initDecLevel);
+document.getElementById('in-vabits').addEventListener('change', initDecLevel);
+document.getElementById('in-rvmode').addEventListener('change', () => { initDecLevel(); doDecode(); });
+
+// Redraw arrows on resize
+new ResizeObserver(() => { if (S.cols.length) requestAnimationFrame(drawArrows); })
+  .observe(document.getElementById('diagram-scroll'));
+
+document.getElementById('diagram-scroll').addEventListener('scroll', () => {
+  if (S.cols.length) requestAnimationFrame(drawArrows);
+});
+
+// Drag-and-drop onto textarea
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') {
+    if (document.getElementById('dbody').style.display !== 'none') {
+      closeDetail(); renderDiagram(); return;
+    }
+    if (S.cols.length > 1) {
+      S.cols.pop(); S.detailCol=-1; S.detailIdx=-1;
+      closeDetail(); renderDiagram();
+    }
+  }
+});
+
+// Initialise level selector on load
+initDecLevel();
+</script>
+</body>
+</html>
