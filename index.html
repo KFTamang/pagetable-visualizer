@@ -49,6 +49,14 @@ input[type=file] { display:none; }
         padding:6px 18px; border-radius:var(--r); cursor:pointer; align-self:flex-end;
         transition:filter .15s; }
 #walk:hover { filter:brightness(1.12); }
+#translate-btn { background:var(--orange); color:#0a0e1a; font:600 13px/1 var(--mono); border:none;
+                 padding:6px 14px; border-radius:var(--r); cursor:pointer; align-self:flex-end;
+                 transition:filter .15s; }
+#translate-btn:hover { filter:brightness(1.12); }
+#tx-status { font-size:11px; align-self:flex-end; padding-bottom:6px; min-width:16px; }
+#tx-status.ok  { color:var(--green); }
+#tx-status.err { color:var(--red); }
+.tx-res .dt { color:var(--orange); border-bottom-color:rgba(232,164,74,.25); }
 
 /* ── main layout ── */
 #main { flex:1; display:flex; overflow:hidden; }
@@ -117,6 +125,7 @@ input[type=file] { display:none; }
 .pte-card:last-child { border-bottom:none; }
 .pte-card:hover { background:var(--raised); }
 .pte-card.active   { background:rgba(107,156,247,.10); border-left-color:var(--blue); }
+.pte-card.tx-path  { background:rgba(232,164,74,.12);  border-left-color:var(--orange); }
 .pte-card.sel-leaf { background:rgba(78,201,148,.08);  border-left-color:var(--green); }
 .pte-card.inv      { opacity:.3; }
 .pc-idx  { font-size:10px; color:var(--muted); width:26px; text-align:right; flex-shrink:0; }
@@ -290,6 +299,13 @@ input[type=file] { display:none; }
     </div>
   </div>
   <button id="walk">Walk ↵</button>
+  <div class="vsep"></div>
+  <div class="field">
+    <label class="fl" id="va-lbl">Virtual Address</label>
+    <input type="text" id="va-input" placeholder="0xffff800000001000" style="width:196px">
+  </div>
+  <button id="translate-btn">Translate →</button>
+  <span id="tx-status"></span>
 </div>
 
 <div id="main">
@@ -558,6 +574,8 @@ const S = {
   cols: [],
   showInvalid: false,
   detailCol: -1, detailIdx: -1,
+  txPath: null,    // Set<"colIdx-pteIdx"> while a translation is active
+  txResult: null,  // {va, pa, kind, ls} | {va, pa:null, fault} | null
 };
 
 // ══ Entry reading ════════════════════════════════════════════════════════════
@@ -681,7 +699,8 @@ function buildPteRow(col, colIdx, idx, desc, va0, va1, ls) {
   const isLf  = isMapping(desc);
 
   if (col.activeIdx === idx && isNav) card.classList.add('active');
-  if (S.detailCol === colIdx && S.detailIdx === idx && isLf) card.classList.add('sel-leaf');
+  if (isTxPath(colIdx, idx))                                    card.classList.add('tx-path');
+  if (S.detailCol === colIdx && S.detailIdx === idx && isLf)    card.classList.add('sel-leaf');
   if (isInv) card.classList.add('inv');
 
   const {text, cls} = descBadge(desc);
@@ -740,6 +759,9 @@ function enterLevel(colIdx, idx, desc, va0) {
 }
 
 function selectLeaf(colIdx, idx, desc, va0, va1) {
+  S.txPath = null; S.txResult = null;
+  const txSt = document.getElementById('tx-status');
+  if (txSt) { txSt.textContent = ''; txSt.className = ''; }
   S.detailCol = colIdx; S.detailIdx = idx;
   // Remove any deeper columns (clicking a leaf in a non-last column resets)
   S.cols = S.cols.slice(0, colIdx + 1);
@@ -782,6 +804,10 @@ function renderNav() {
     }
     bar.appendChild(sp);
   });
+}
+
+function isTxPath(colIdx, pteIdx) {
+  return S.txPath !== null && S.txPath.has(`${colIdx}-${pteIdx}`);
 }
 
 // ══ Arrow drawing ════════════════════════════════════════════════════════════
@@ -1180,6 +1206,9 @@ function dr(key, val, flag) {
 
 function closeDetail() {
   S.detailCol = -1; S.detailIdx = -1;
+  S.txPath = null; S.txResult = null;
+  const txSt = document.getElementById('tx-status');
+  if (txSt) { txSt.textContent = ''; txSt.className = ''; }
   document.getElementById('dec-input').value = '';
   const st = document.getElementById('dec-status');
   st.textContent = ''; st.className = '';
@@ -1249,6 +1278,129 @@ function doWalk() {
   renderDiagram();
 }
 
+// ══ Translation walk ══════════════════════════════════════════════════════════
+
+function doTranslate() {
+  if (!S.cols.length) { alert('Click Walk first to load the page table root.'); return; }
+
+  const vaStr = document.getElementById('va-input').value.trim();
+  if (!vaStr) return;
+
+  let va;
+  try { va = BigInt(/^0x/i.test(vaStr) ? vaStr : '0x' + vaStr); }
+  catch {
+    const ts = document.getElementById('tx-status');
+    ts.textContent = '✗ invalid VA'; ts.className = 'err'; return;
+  }
+
+  // Reset to root column; keep tx state as a fresh Set (don't call closeDetail)
+  S.cols = [{ ...S.cols[0], activeIdx: null }];
+  S.txPath = new Set();
+  S.txResult = null;
+  S.detailCol = -1; S.detailIdx = -1;
+  // Reset decoder display without calling closeDetail (which would wipe txPath)
+  document.getElementById('dec-input').value = '';
+  document.getElementById('dec-status').textContent = '';
+  document.getElementById('dec-status').className = '';
+  document.getElementById('dec-hint').style.display = '';
+  const dbody = document.getElementById('dbody');
+  dbody.style.display = 'none'; dbody.innerHTML = '';
+
+  let leafEntry = null;
+
+  for (let colIdx = 0; colIdx < 32; colIdx++) {
+    const col = S.cols[colIdx];
+    if (!S.mem.has(col.tablePA)) {
+      S.txResult = { va, pa: null, fault: 'Page table not in dump' };
+      break;
+    }
+
+    let pteIdx, raw, desc, ls, va0, va1;
+
+    if (S.arch === 'aarch64') {
+      const lvl = col.level;
+      ls = aaLevelShift(lvl, S.gs);
+      const cnt = aaEntryCount(lvl, S.vaBits, S.gs, S.aaRoot);
+      pteIdx = Number((va >> BigInt(ls)) & BigInt(cnt - 1));
+      raw    = S.mem.read64(col.tablePA + pteIdx * 8) ?? 0n;
+      desc   = new AADesc(raw, lvl, S.gs);
+    } else {
+      const lvl = col.level;
+      const cfg = rvCfg(S.rvMode);
+      ls = rvLevelShift(lvl, S.rvMode);
+      pteIdx = Number((va >> BigInt(ls)) & BigInt(rvEntryCount(S.rvMode) - 1));
+      const pteAddr = col.tablePA + pteIdx * (cfg.is32 ? 4 : 8);
+      raw  = (cfg.is32 ? S.mem.read32(pteAddr) : S.mem.read64(pteAddr)) ?? 0n;
+      desc = new RVDesc(raw, lvl, S.rvMode);
+    }
+
+    va0 = col.vaBase | (BigInt(pteIdx) << BigInt(ls));
+    va1 = va0 + (1n << BigInt(ls)) - 1n;
+
+    S.cols[colIdx].activeIdx = pteIdx;
+    S.txPath.add(`${colIdx}-${pteIdx}`);
+
+    if (desc.kind === 'invalid') {
+      S.txResult = { va, pa: null, fault: 'Invalid PTE (page fault)' };
+      break;
+    } else if (isMapping(desc)) {
+      const pageOff = va & ((1n << BigInt(ls)) - 1n);
+      S.txResult = { va, pa: desc.oa | pageOff, kind: desc.kind, ls };
+      S.detailCol = colIdx;
+      S.detailIdx = pteIdx;
+      leafEntry = { colIdx, pteIdx, desc, va0, va1 };
+      break;
+    } else {
+      // Navigable: push next level
+      const nextLvl = S.arch === 'aarch64' ? col.level + 1 : col.level - 1;
+      S.cols.push({
+        tablePA:  Number(desc.oa),
+        level:    nextLvl,
+        vaBase:   va0,
+        label:    `L${col.level}[${pteIdx}]`,
+        activeIdx: null,
+      });
+    }
+  }
+
+  // Update status badge
+  const ts = document.getElementById('tx-status');
+  if (S.txResult && S.txResult.pa !== null) {
+    ts.textContent = '✓'; ts.className = 'ok';
+  } else {
+    ts.textContent = '✗'; ts.className = 'err';
+  }
+
+  renderDiagram();
+
+  if (leafEntry) {
+    openDetail(leafEntry.colIdx, leafEntry.pteIdx, leafEntry.desc, leafEntry.va0, leafEntry.va1);
+    // Prepend translation result section into the decoder body
+    const r = S.txResult;
+    const resDiv = document.createElement('div');
+    resDiv.className = 'ds tx-res';
+    resDiv.innerHTML = `<div class="dt">Translation</div>
+      <div class="dr"><span class="dk">VA</span><span class="dv addr">${h64(r.va)}</span></div>
+      <div class="dr"><span class="dk">→ PA</span><span class="dv addr">${h64(r.pa)}</span></div>
+      <div class="dr"><span class="dk">Page offset</span><span class="dv">${hPA(r.va & ((1n << BigInt(r.ls)) - 1n))}</span></div>
+      <div class="dr"><span class="dk">Page size</span><span class="dv">${fmtSize(r.ls)}</span></div>`;
+    dbody.insertBefore(resDiv, dbody.firstChild);
+  } else if (S.txResult) {
+    document.getElementById('dec-hint').style.display = 'none';
+    dbody.style.display = '';
+    dbody.innerHTML = `<div class="ds tx-res"><div class="dt">Translation Fault</div>
+      <div class="dr"><span class="dk">VA</span><span class="dv addr">${h64(S.txResult.va)}</span></div>
+      <div class="dr"><span class="dk">Reason</span><span class="dv" style="color:var(--red)">${esc(S.txResult.fault)}</span></div>
+    </div>`;
+  }
+
+  requestAnimationFrame(() => requestAnimationFrame(drawArrows));
+  setTimeout(() => {
+    const sc = document.getElementById('diagram-scroll');
+    sc.scrollLeft = sc.scrollWidth;
+  }, 80);
+}
+
 // ══ Arch switching ════════════════════════════════════════════════════════════
 
 function setArch(arch) {
@@ -1260,6 +1412,8 @@ function setArch(arch) {
     arch==='aarch64' ? 'TTBRn_ELx (PA)' : 'satp CSR  or  root PA';
   document.getElementById('in-addr').placeholder =
     arch==='aarch64' ? '0x1000' : '0x8000000000000001';
+  document.getElementById('va-input').placeholder =
+    arch==='aarch64' ? '0xffff800000001000' : '0x400000001234';
   S.cols=[]; S.detailCol=-1; S.detailIdx=-1;
   closeDetail(); initDecLevel(); renderDiagram();
 }
@@ -1282,6 +1436,8 @@ document.getElementById('dump-text').addEventListener('input', scheduleParse);
 document.getElementById('in-off').addEventListener('change', doParse);
 document.getElementById('walk').addEventListener('click', doWalk);
 document.getElementById('in-addr').addEventListener('keydown', e => { if(e.key==='Enter') doWalk(); });
+document.getElementById('translate-btn').addEventListener('click', doTranslate);
+document.getElementById('va-input').addEventListener('keydown', e => { if(e.key==='Enter') doTranslate(); });
 document.getElementById('dclose').addEventListener('click', () => { closeDetail(); renderDiagram(); });
 document.getElementById('inv-btn').addEventListener('click', () => {
   S.showInvalid = !S.showInvalid;
