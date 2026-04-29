@@ -100,29 +100,31 @@ input[type=file] { display:none; }
 /* column gap for arrows */
 .col-gap { width:52px; flex-shrink:0; }
 
-/* node card */
-.pt-col { flex-shrink:0; width:268px; }
-.node { background:var(--surface); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
-.node.focused { border-color:var(--blue); }
-.node-hdr { padding:7px 10px; background:var(--raised); border-bottom:1px solid var(--border);
-            display:flex; flex-direction:column; gap:2px; }
-.nh-title { font-size:11px; color:var(--blue); font-weight:600; }
-.nh-sub   { font-size:10px; color:var(--muted); }
-.node-body { overflow-y:auto; max-height:min(520px, calc(100vh - 160px)); }
-.pte-row { display:flex; align-items:center; gap:5px; padding:3px 8px; cursor:pointer;
-           border-bottom:1px solid rgba(46,50,72,.25); transition:background .07s;
-           border-left:2px solid transparent; }
-.pte-row:last-child { border-bottom:none; }
-.pte-row:hover { background:var(--raised); }
-.pte-row.active   { background:rgba(107,156,247,.10); border-left-color:var(--blue); }
-.pte-row.sel-leaf { background:rgba(78,201,148,.08);  border-left-color:var(--green); }
-.pte-row.inv      { opacity:.3; }
-.pr-idx  { font-size:10px; color:var(--muted); width:26px; text-align:right; flex-shrink:0; }
-.pr-va   { font-size:10px; color:var(--dim); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.pr-oa   { font-size:10px; color:var(--yellow); flex-shrink:0; }
-.pr-arr  { font-size:10px; color:var(--blue); flex-shrink:0; }
-.node-empty { padding:12px; font-size:11px; color:var(--muted); }
-.node-missing { padding:12px; font-size:11px; color:var(--red); }
+/* column label + individual pte cards */
+.pt-col { flex-shrink:0; width:268px; display:flex; flex-direction:column; }
+.col-lbl { padding:6px 10px; background:var(--raised); border:1px solid var(--border);
+           border-radius:6px 6px 0 0; display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+.col-lbl.focused { border-color:var(--blue); }
+.cl-lvl  { font-size:11px; color:var(--blue); font-weight:600; }
+.cl-addr { font-size:10px; color:var(--muted); }
+.col-stats { font-size:10px; color:var(--dim); padding:2px 10px; flex-shrink:0;
+             border:1px solid var(--border); border-top:none; background:var(--surface); }
+.col-body { overflow-y:auto; max-height:min(540px, calc(100vh - 175px));
+            border:1px solid var(--border); border-top:none; border-radius:0 0 6px 6px; }
+.pte-card { display:flex; align-items:center; gap:5px; padding:3px 8px; cursor:pointer;
+            border-bottom:1px solid rgba(46,50,72,.25); transition:background .07s;
+            border-left:2px solid transparent; }
+.pte-card:last-child { border-bottom:none; }
+.pte-card:hover { background:var(--raised); }
+.pte-card.active   { background:rgba(107,156,247,.10); border-left-color:var(--blue); }
+.pte-card.sel-leaf { background:rgba(78,201,148,.08);  border-left-color:var(--green); }
+.pte-card.inv      { opacity:.3; }
+.pc-idx  { font-size:10px; color:var(--muted); width:26px; text-align:right; flex-shrink:0; }
+.pc-va   { font-size:10px; color:var(--dim); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pc-oa   { font-size:10px; color:var(--yellow); flex-shrink:0; }
+.pc-arr  { font-size:10px; color:var(--blue); flex-shrink:0; }
+.pte-empty   { padding:12px; font-size:11px; color:var(--muted); }
+.pte-missing { padding:12px; font-size:11px; color:var(--red); }
 
 /* badge */
 .badge { display:inline-block; padding:1px 5px; border-radius:3px;
@@ -185,18 +187,48 @@ input[type=file] { display:none; }
 .dv.off  { color:var(--muted); }
 .draw { color:var(--yellow); font-size:11px; background:var(--raised);
         padding:5px 8px; border-radius:var(--r); word-break:break-all; margin-bottom:6px; }
-.bwrap  { overflow-x:auto; margin-top:4px; }
-.bstrip { display:flex; gap:0; width:max-content; border-radius:3px; overflow:visible; }
-.bf     { display:flex; flex-direction:column; align-items:center;
-          border-right:1px solid var(--bg); flex-shrink:0; }
-.bf:last-child { border-right:none; }
-.bfl { font-size:7px; color:var(--bg); padding:1px 2px; width:100%; text-align:center; white-space:nowrap; overflow:hidden; }
-.bfv { font-size:9px; padding:1px 2px; width:100%; text-align:center; background:var(--raised); color:var(--dim); }
-.f-oa  { background:#1a3050; } .f-oa  .bfl { background:var(--blue); }
-.f-ctl { background:#2a2010; } .f-ctl .bfl { background:var(--yellow); }
-.f-rwx { background:#1a2e1a; } .f-rwx .bfl { background:var(--green); }
-.f-res { background:var(--raised); } .f-res .bfl { background:var(--muted); }
-.f-up  { background:#2a1a40; } .f-up  .bfl { background:var(--purple); }
+/* ── bit-field table ── */
+.bf-wrap  { overflow-x:auto; margin-top:4px; }
+.bf-table { border-collapse:collapse; white-space:nowrap; font-family:var(--mono); }
+.bf-num   { font-size:7px; color:var(--muted); text-align:center; padding:1px 0;
+            border:1px solid var(--border); min-width:14px; }
+.bf-bit   { font-size:9px; font-weight:600; text-align:center; padding:2px 0;
+            border:1px solid var(--border); min-width:14px; }
+.bv1 { color:var(--cyan); background:rgba(93,208,232,.08); }
+.bv0 { color:var(--muted); }
+.bf-field { vertical-align:top; padding:2px 3px; border:1px solid var(--border); }
+.bf-fname { font-size:8px; color:var(--bg); padding:1px 2px; border-radius:2px;
+            font-weight:700; display:inline-block; white-space:nowrap; }
+.bf-fval  { font-size:8px; color:var(--dim); margin-top:1px; white-space:nowrap; }
+.bf-desc  { vertical-align:top; padding:2px 3px; border:1px solid var(--border); border-top:none; }
+.bf-dtext { font-size:9px; line-height:1.4; background:rgba(232,197,109,.08);
+            padding:2px 3px; border-radius:2px; color:var(--text); white-space:normal; }
+.bf-field.f-oa  { background:#152840; } .bf-field.f-oa  .bf-fname { background:var(--blue); }
+.bf-field.f-ctl { background:#221c0e; } .bf-field.f-ctl .bf-fname { background:var(--yellow); }
+.bf-field.f-rwx { background:#142514; } .bf-field.f-rwx .bf-fname { background:var(--green); }
+.bf-field.f-res { background:var(--raised); } .bf-field.f-res .bf-fname { background:var(--muted); }
+.bf-field.f-up  { background:#221436; } .bf-field.f-up  .bf-fname { background:var(--purple); }
+.bf-desc.f-oa  { background:#0d1a26; } .bf-desc.f-ctl { background:#180f00; }
+.bf-desc.f-rwx { background:#0a180a; } .bf-desc.f-res { background:var(--bg); }
+.bf-desc.f-up  { background:#150a22; }
+
+/* ── field description list ── */
+.fdescs { display:flex; flex-direction:column; gap:3px; margin-top:6px; }
+.fdesc-item { border-radius:3px; overflow:hidden; border:1px solid var(--border); }
+.fdesc-hdr  { display:flex; align-items:baseline; gap:5px; padding:3px 6px; }
+.fdesc-name { font-size:8px; font-weight:700; padding:1px 4px; border-radius:2px;
+              color:var(--bg); flex-shrink:0; }
+.fdesc-bits { font-size:9px; color:var(--dim); flex:1; }
+.fdesc-val  { font-size:9px; color:var(--yellow); font-weight:600; }
+.fdesc-txt  { font-size:10px; padding:3px 6px 4px; color:var(--text); line-height:1.35; }
+.fdesc-item.f-oa  .fdesc-hdr { background:#152840; } .fdesc-item.f-oa  .fdesc-name { background:var(--blue); }
+.fdesc-item.f-ctl .fdesc-hdr { background:#221c0e; } .fdesc-item.f-ctl .fdesc-name { background:var(--yellow); color:#000; }
+.fdesc-item.f-rwx .fdesc-hdr { background:#142514; } .fdesc-item.f-rwx .fdesc-name { background:var(--green); color:#000; }
+.fdesc-item.f-res .fdesc-hdr { background:var(--raised); } .fdesc-item.f-res .fdesc-name { background:var(--muted); }
+.fdesc-item.f-up  .fdesc-hdr { background:#221436; } .fdesc-item.f-up  .fdesc-name { background:var(--purple); }
+.fdesc-item.f-oa  .fdesc-txt { background:#0d1a26; } .fdesc-item.f-ctl .fdesc-txt { background:#180f00; }
+.fdesc-item.f-rwx .fdesc-txt { background:#0a180a; } .fdesc-item.f-res .fdesc-txt { background:var(--bg); display:none; }
+.fdesc-item.f-up  .fdesc-txt { background:#150a22; }
 
 ::-webkit-scrollbar { width:5px; height:5px; }
 ::-webkit-scrollbar-track { background:var(--bg); }
@@ -592,76 +624,84 @@ function renderDiagram() {
 }
 
 function buildNode(col, colIdx) {
-  const node = document.createElement('div');
-  node.className = 'node' + (colIdx === S.cols.length - 1 ? ' focused' : '');
+  const wrap = document.createElement('div');
 
-  // Header
-  const hdr = document.createElement('div');
-  hdr.className = 'node-hdr';
+  const lbl = document.createElement('div');
+  lbl.className = 'col-lbl' + (colIdx === S.cols.length - 1 ? ' focused' : '');
+  lbl.id = `col-lbl-${colIdx}`;
+  lbl.innerHTML = `<span class="cl-lvl">${esc(col.label)}</span><span class="cl-addr">${hPA(col.tablePA)}</span>`;
+  wrap.appendChild(lbl);
 
   const body = document.createElement('div');
-  body.className = 'node-body';
+  body.className = 'col-body';
 
   if (!S.mem.has(col.tablePA)) {
-    hdr.innerHTML = `<div class="nh-title">${esc(col.label)}</div>
-      <div class="nh-sub">@ ${hPA(col.tablePA)}</div>`;
-    body.innerHTML = `<div class="node-missing">Address not in dump</div>`;
+    const miss = document.createElement('div');
+    miss.className = 'pte-missing';
+    miss.textContent = 'Address not in dump';
+    body.appendChild(miss);
+    wrap.appendChild(body);
+    return wrap;
+  }
+
+  const all    = readEntries(col);
+  const valid  = all.filter(e => e.desc.kind !== 'invalid');
+  const ptrs   = valid.filter(e => isNavigable(e.desc)).length;
+  const maps   = valid.filter(e => isMapping(e.desc)).length;
+  const invcnt = all.length - valid.length;
+
+  const stats = document.createElement('div');
+  stats.className = 'col-stats';
+  stats.textContent = `${ptrs} ptr · ${maps} map · ${invcnt} inv`;
+  wrap.appendChild(stats);
+
+  const rows = S.showInvalid ? all : valid;
+  if (rows.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'pte-empty';
+    empty.textContent = 'No entries to display';
+    body.appendChild(empty);
   } else {
-    const all    = readEntries(col);
-    const valid  = all.filter(e => e.desc.kind !== 'invalid');
-    const ptrs   = valid.filter(e => isNavigable(e.desc)).length;
-    const maps   = valid.filter(e => isMapping(e.desc)).length;
-    const invcnt = all.length - valid.length;
-
-    hdr.innerHTML = `<div class="nh-title">${esc(col.label)}</div>
-      <div class="nh-sub">@ ${hPA(col.tablePA)} &nbsp;·&nbsp; ${ptrs} ptr &nbsp; ${maps} map &nbsp; ${invcnt} inv</div>`;
-
-    const rows = S.showInvalid ? all : valid;
-    if (rows.length === 0) {
-      body.innerHTML = `<div class="node-empty">No entries to display</div>`;
-    } else {
-      for (const {idx, desc, va0, va1, ls} of rows) {
-        body.appendChild(buildPteRow(col, colIdx, idx, desc, va0, va1, ls));
-      }
+    for (const {idx, desc, va0, va1, ls} of rows) {
+      body.appendChild(buildPteRow(col, colIdx, idx, desc, va0, va1, ls));
     }
   }
 
-  node.appendChild(hdr);
-  node.appendChild(body);
-  return node;
+  wrap.appendChild(body);
+  return wrap;
 }
 
 function buildPteRow(col, colIdx, idx, desc, va0, va1, ls) {
-  const row = document.createElement('div');
-  row.className = 'pte-row';
-  row.id = `row-${colIdx}-${idx}`;
+  const card = document.createElement('div');
+  card.className = 'pte-card';
+  card.id = `row-${colIdx}-${idx}`;
 
   const isInv = desc.kind === 'invalid';
   const isNav = isNavigable(desc);
   const isLf  = isMapping(desc);
 
-  if (col.activeIdx === idx && isNav) row.classList.add('active');
-  if (S.detailCol === colIdx && S.detailIdx === idx && isLf) row.classList.add('sel-leaf');
-  if (isInv) row.classList.add('inv');
+  if (col.activeIdx === idx && isNav) card.classList.add('active');
+  if (S.detailCol === colIdx && S.detailIdx === idx && isLf) card.classList.add('sel-leaf');
+  if (isInv) card.classList.add('inv');
 
   const {text, cls} = descBadge(desc);
   const vaShort = '…' + va0.toString(16).slice(-8);
 
   let rightHtml = '';
   if (isNav) {
-    rightHtml = `<span class="pr-arr">→</span>`;
+    rightHtml = `<span class="pc-arr">→</span>`;
   } else if (!isInv) {
     const oaShort = '…' + desc.oa.toString(16).padStart(10,'0').slice(-8);
-    rightHtml = `<span class="pr-oa">${oaShort}</span>`;
+    rightHtml = `<span class="pc-oa">${oaShort}</span>`;
   }
 
-  row.innerHTML = `
-    <span class="pr-idx">${idx}</span>
+  card.innerHTML = `
+    <span class="pc-idx">${idx}</span>
     <span class="badge ${cls}">${text}</span>
-    <span class="pr-va">${isInv ? '' : vaShort + ' ' + fmtSize(ls)}</span>
+    <span class="pc-va">${isInv ? '' : vaShort + ' ' + fmtSize(ls)}</span>
     ${rightHtml}`;
 
-  row.addEventListener('click', () => {
+  card.addEventListener('click', () => {
     if (isNav) {
       enterLevel(colIdx, idx, desc, va0);
     } else {
@@ -669,7 +709,7 @@ function buildPteRow(col, colIdx, idx, desc, va0, va1, ls) {
     }
   });
 
-  return row;
+  return card;
 }
 
 // ══ Navigation ═══════════════════════════════════════════════════════════════
@@ -796,7 +836,7 @@ function drawArrows() {
     if (col.activeIdx === null || col.activeIdx === undefined) continue;
 
     const srcRow = document.getElementById(`row-${i}-${col.activeIdx}`);
-    const tgtHdr = document.querySelector(`#col-${i+1} .node-hdr`);
+    const tgtHdr = document.getElementById(`col-lbl-${i+1}`);
     if (!srcRow || !tgtHdr) continue;
 
     const sr = rel(srcRow);
@@ -904,8 +944,159 @@ function doDecode() {
   renderDecodedBody(raw, desc, null, null, null);
 }
 
-// Shared renderer — writes into #dbody.
-// va0/va1/idx may be null (direct decode) or BigInt/number (from diagram navigation).
+// ── Field definitions ────────────────────────────────────────────────────────
+
+// Returns field defs [{name,hi,lo,cls,desc}] covering all 64 bits for AArch64.
+function aaFieldDefs(raw, level, gs) {
+  const G = gs;
+  const bit1 = !!(raw & 2n);
+  const defs = [];
+  if (level < 3 && bit1) {
+    // Table descriptor
+    defs.push({name:'NST',   hi:63, lo:63, cls:'f-up',  desc: v => v?'Non-secure table':'Inherits security state'});
+    defs.push({name:'APT',   hi:62, lo:61, cls:'f-up',  desc: v => ['No effect','EL0 access denied','No write access','No write + EL0 denied'][Number(v)]});
+    defs.push({name:'UXNT',  hi:60, lo:60, cls:'f-up',  desc: v => v?'UXN override on lower levels':'No effect'});
+    defs.push({name:'PXNT',  hi:59, lo:59, cls:'f-up',  desc: v => v?'PXN override on lower levels':'No effect'});
+    defs.push({name:'RES0',  hi:58, lo:48, cls:'f-res', desc:()=>''});
+    defs.push({name:'OA',    hi:47, lo:G,  cls:'f-oa',  desc: v => `Table @ 0x${(v<<BigInt(G)).toString(16).padStart(12,'0')}`});
+    if (G > 12) defs.push({name:'SBZ', hi:G-1, lo:12, cls:'f-res', desc:()=>'Must be zero'});
+    defs.push({name:'[11:2]',hi:11, lo:2,  cls:'f-res', desc:()=>''});
+    defs.push({name:'Type',  hi:1,  lo:0,  cls:'f-ctl', desc:()=>'0b11 = Table descriptor'});
+  } else {
+    // Block (L0-L2) or Page (L3)
+    defs.push({name:'RES0',  hi:63, lo:55, cls:'f-res', desc:()=>''});
+    defs.push({name:'UXN',   hi:54, lo:54, cls:'f-up',  desc: v => v?'EL0 execute-never (XN)':'EL0 can execute'});
+    defs.push({name:'PXN',   hi:53, lo:53, cls:'f-up',  desc: v => v?'EL1/2/3 execute-never':'Privileged execute ok'});
+    defs.push({name:'Cont',  hi:52, lo:52, cls:'f-up',  desc: v => v?'Contiguous hint (TLB coalesce)':'Standard mapping'});
+    defs.push({name:'DBM',   hi:51, lo:51, cls:'f-up',  desc: v => v?'Dirty Bit Modifier active':'HW dirty-bit update off'});
+    defs.push({name:'RES0',  hi:50, lo:48, cls:'f-res', desc:()=>''});
+    const oaLo = level < 3 ? aaLevelShift(level, gs) : gs;
+    defs.push({name:'OA',    hi:47, lo:oaLo, cls:'f-oa',
+      desc: v => `0x${(v<<BigInt(oaLo)).toString(16).padStart(12,'0')} — ${fmtSize(oaLo)} ${level===3?'page':'block'}`});
+    if (oaLo > gs) defs.push({name:'SBZ', hi:oaLo-1, lo:gs, cls:'f-res', desc:()=>'Must be zero (block-aligned)'});
+    defs.push({name:'nG',    hi:11, lo:11, cls:'f-ctl', desc: v => v?'Non-global (ASID-specific)':'Global (no ASID check)'});
+    defs.push({name:'AF',    hi:10, lo:10, cls:'f-ctl', desc: v => v?'Access flag set (accessed)':'Not accessed — may take Access Flag fault'});
+    defs.push({name:'SH',    hi:9,  lo:8,  cls:'f-ctl', desc: v => ['Non-shareable','(Reserved)','Outer Shareable','Inner Shareable'][Number(v)]});
+    defs.push({name:'AP',    hi:7,  lo:6,  cls:'f-ctl', desc: v => ['Read/Write, EL0 no access','Read/Write, EL0 accessible','Read-only, EL0 no access','Read-only, EL0 accessible'][Number(v)]});
+    defs.push({name:'NS',    hi:5,  lo:5,  cls:'f-ctl', desc: v => v?'Output to Non-secure PA':'Output to Secure PA'});
+    defs.push({name:'AttrIdx',hi:4, lo:2,  cls:'f-ctl', desc: v => `MAIR[${v}] — memory attribute index`});
+    defs.push({name:'Type',  hi:1,  lo:0,  cls:'f-ctl', desc: v => {
+      const n = Number(v);
+      if (level===3) return n===3?'Page descriptor (valid)':'Invalid (must be 0b11 at L3)';
+      return {0:'Invalid (fault)',1:'Block descriptor',2:'Invalid',3:'Table descriptor'}[n]??'';
+    }});
+  }
+  return defs;
+}
+
+// Returns field defs for RISC-V PTE (32-bit for Sv32, 64-bit otherwise).
+function rvFieldDefs(raw, rvLevel, mode) {
+  const cfg = rvCfg(mode);
+  const defs = [];
+  const v = !!(raw & 1n), r = !!(raw & 2n), w = !!(raw & 4n), x = !!(raw & 8n);
+  const isLeaf = v && (r || x) && !(r===false && w);
+  const isPtr  = v && !r && !w && !x;
+
+  if (cfg.is32) {
+    defs.push({name:'PPN[1]', hi:31, lo:20, cls:'f-oa',  desc: va => `PPN[1] = ${va} → PA[31:20]`});
+    defs.push({name:'PPN[0]', hi:19, lo:10, cls:'f-oa',  desc: va => `PPN[0] = ${va} → PA[19:10]`});
+    defs.push({name:'RSW',    hi:9,  lo:8,  cls:'f-res', desc:()=>'Reserved for supervisor software'});
+  } else {
+    defs.push({name:'[63:54]',hi:63, lo:54, cls:'f-res', desc:()=>'Reserved (must be zero)'});
+    defs.push({name:'PPN',    hi:53, lo:10, cls:'f-oa',  desc: va => {
+      const pa = va << 12n;
+      return isPtr ? `Next-level table @ 0x${pa.toString(16).padStart(12,'0')}`
+                   : `Physical addr → 0x${pa.toString(16).padStart(12,'0')}`;
+    }});
+    defs.push({name:'RSW',    hi:9,  lo:8,  cls:'f-res', desc:()=>'Reserved for supervisor software'});
+  }
+  defs.push({name:'D', hi:7, lo:7, cls:'f-rwx', desc: va => va?'Dirty — page has been written':'Clean — no writes since last clear'});
+  defs.push({name:'A', hi:6, lo:6, cls:'f-rwx', desc: va => va?'Accessed — page has been read/written':'Not accessed since last clear'});
+  defs.push({name:'G', hi:5, lo:5, cls:'f-rwx', desc: va => va?'Global — mapping applies to all address spaces':'ASID-specific mapping'});
+  defs.push({name:'U', hi:4, lo:4, cls:'f-rwx', desc: va => va?'User-mode accessible':'Supervisor-mode only'});
+  defs.push({name:'X', hi:3, lo:3, cls:'f-rwx', desc: va => va?'Execute permission granted':'Execute not permitted'});
+  defs.push({name:'W', hi:2, lo:2, cls:'f-rwx', desc: va => va?'Write permission granted':'Write not permitted'});
+  defs.push({name:'R', hi:1, lo:1, cls:'f-rwx', desc: va => va?'Read permission granted':'Read not permitted'});
+  defs.push({name:'V', hi:0, lo:0, cls:'f-ctl', desc: () => {
+    if (!v) return 'Invalid — page fault on access';
+    if (!r && w) return 'Invalid — R=0,W=1 is reserved';
+    if (isPtr)  return `Pointer → next-level (L${rvLevel-1}) page table`;
+    if (rvLevel > 0) return `${fmtSize(rvLevelShift(rvLevel, mode))} superpage leaf`;
+    return '4 KB page leaf';
+  }});
+  return defs;
+}
+
+// Build the 4-row bit-field table HTML from raw value and field definitions.
+function buildBitTable(raw, fieldDefs, totalBits) {
+  const sorted = [...fieldDefs].sort((a,b) => b.hi - a.hi);
+  const full = [];
+  let cur = totalBits - 1;
+  for (const f of sorted) {
+    if (cur > f.hi) full.push({name:'RES0', hi:cur, lo:f.hi+1, cls:'f-res', desc:()=>''});
+    full.push(f);
+    cur = f.lo - 1;
+  }
+  if (cur >= 0) full.push({name:'RES0', hi:cur, lo:0, cls:'f-res', desc:()=>''});
+
+  let html = `<div class="bf-wrap"><table class="bf-table"><tbody>`;
+
+  // Row 1 — bit numbers
+  html += `<tr>`;
+  for (let b = totalBits-1; b >= 0; b--) html += `<td class="bf-num">${b}</td>`;
+  html += `</tr>`;
+
+  // Row 2 — bit values (0/1)
+  html += `<tr>`;
+  for (let b = totalBits-1; b >= 0; b--) {
+    const v = Number((raw >> BigInt(b)) & 1n);
+    html += `<td class="bf-bit bv${v}">${v}</td>`;
+  }
+  html += `</tr>`;
+
+  // Row 3 — field name + raw value
+  html += `<tr>`;
+  for (const f of full) {
+    const span = f.hi - f.lo + 1;
+    const val  = (raw >> BigInt(f.lo)) & ((1n << BigInt(span)) - 1n);
+    const vs   = span <= 1  ? val.toString()
+               : span <= 12 ? `0b${val.toString(2).padStart(span,'0')}`
+               :              `0x${val.toString(16)}`;
+    html += `<td colspan="${span}" class="bf-field ${f.cls}"><div class="bf-fname">${esc(f.name)}</div><div class="bf-fval">${vs}</div></td>`;
+  }
+  html += `</tr>`;
+
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+// Build a vertical list of per-field descriptions.
+function buildFieldDescs(raw, fieldDefs) {
+  const sorted = [...fieldDefs].sort((a,b) => b.hi - a.hi);
+  let html = '<div class="fdescs">';
+  for (const f of sorted) {
+    const span = f.hi - f.lo + 1;
+    const val  = (raw >> BigInt(f.lo)) & ((1n << BigInt(span)) - 1n);
+    const vs   = span <= 1  ? val.toString()
+               : span <= 12 ? `0b${val.toString(2).padStart(span,'0')}`
+               :              `0x${val.toString(16)}`;
+    const txt  = f.desc ? f.desc(val, raw) : '';
+    const bits = f.hi === f.lo ? `[${f.hi}]` : `[${f.hi}:${f.lo}]`;
+    html += `<div class="fdesc-item ${f.cls}">
+      <div class="fdesc-hdr">
+        <span class="fdesc-name">${esc(f.name)}</span>
+        <span class="fdesc-bits">${bits}</span>
+        <span class="fdesc-val">${vs}</span>
+      </div>`;
+    if (txt) html += `<div class="fdesc-txt">${esc(txt)}</div>`;
+    html += `</div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+// ── Shared body renderer ─────────────────────────────────────────────────────
+// va0/va1/idx may be null (direct-decode path) or BigInt/number (from diagram).
 function renderDecodedBody(raw, desc, idx, va0, va1) {
   const hint = document.getElementById('dec-hint');
   const body = document.getElementById('dbody');
@@ -942,18 +1133,22 @@ function renderDecodedBody(raw, desc, idx, va0, va1) {
     </div>`;
   }
 
-  if (desc.kind === 'invalid') {
-    html += `<div style="font-size:11px;color:var(--muted);padding:4px 0">Invalid — ${S.arch==='riscv'?'V=0 or reserved combination':'bit[0]=0'}</div>`;
+  // Bit-field table (replaces both the attribute rows and old bit strip)
+  let fieldDefs, totalBits;
+  if (S.arch === 'aarch64') {
+    const gs = aaGranShift(+document.getElementById('in-gran').value);
+    fieldDefs = aaFieldDefs(raw, desc.level, gs);
+    totalBits = 64;
   } else {
-    if (S.arch === 'aarch64') html += aaDetailFields(desc);
-    else                       html += rvDetailFields(desc);
+    const mode = document.getElementById('in-rvmode').value;
+    const rvLvl = desc.rvLevel ?? +document.getElementById('dec-lvl').value;
+    fieldDefs = rvFieldDefs(raw, rvLvl, mode);
+    totalBits = rvCfg(mode).is32 ? 32 : 64;
   }
 
-  html += `<div class="ds"><div class="dt">Raw bits</div><div class="bwrap"><div class="bstrip" id="bstrip"></div></div></div>`;
+  html += `<div class="ds"><div class="dt">Bit fields</div>${buildBitTable(raw, fieldDefs, totalBits)}</div>`;
+  html += `<div class="ds"><div class="dt">Field Descriptions</div>${buildFieldDescs(raw, fieldDefs)}</div>`;
   body.innerHTML = html;
-
-  if (S.arch === 'aarch64') renderAABits(raw);
-  else                       renderRVBits(raw, S.rvMode);
 }
 
 // ══ Detail panel ═════════════════════════════════════════════════════════════
@@ -978,36 +1173,6 @@ function openDetail(colIdx, idx, desc, va0, va1) {
   requestAnimationFrame(() => requestAnimationFrame(drawArrows));
 }
 
-function aaDetailFields(desc) {
-  if (desc.kind === 'table') {
-    return `<div class="ds"><div class="dt">Table override</div>
-      ${dr('NSTable [63]',   desc.nsT  ? '1':'0', desc.nsT)}
-      ${dr('UXNTable [60]',  desc.uxnT ? '1':'0', desc.uxnT)}
-      ${dr('PXNTable [59]',  desc.pxnT ? '1':'0', desc.pxnT)}
-      ${dr('APTable [62:61]',desc.apT, false)}</div>`;
-  }
-  return `<div class="ds"><div class="dt">Memory attributes</div>
-    ${dr('AP[2:1]',    AA_AP[desc.ap])}
-    ${dr('SH[1:0]',    AA_SH[desc.sh])}
-    ${dr('MAIR index', desc.attrIdx)}
-    ${dr('AF [10]',    desc.af  ? '1 — set':'0 — not accessed', desc.af)}
-    ${dr('nG [11]',    +desc.ng,  desc.ng)}
-    ${dr('PXN [53]',   +desc.pxn, desc.pxn)}
-    ${dr('UXN [54]',   +desc.uxn, desc.uxn)}
-    ${dr('Cont [52]',  +desc.cont,desc.cont)}
-    ${dr('DBM [51]',   +desc.dbm, desc.dbm)}</div>`;
-}
-
-function rvDetailFields(desc) {
-  return `<div class="ds"><div class="dt">PTE flags</div>
-    ${dr('R [1]',+desc.r,desc.r)} ${dr('W [2]',+desc.w,desc.w)} ${dr('X [3]',+desc.x,desc.x)}
-    ${dr('U [4]',+desc.u,desc.u)} ${dr('G [5]',+desc.g,desc.g)}
-    ${dr('A [6]',desc.a?'1 — accessed':'0',desc.a)}
-    ${dr('D [7]',desc.d?'1 — dirty':'0',desc.d)}
-    ${dr('RSW [9:8]',desc.rsw)}
-    ${dr('PPN','0x'+desc.ppn.toString(16).padStart(11,'0'))}</div>`;
-}
-
 function dr(key, val, flag) {
   const cls = flag===undefined ? '' : (flag ? ' set' : ' off');
   return `<div class="dr"><span class="dk">${key}</span><span class="dv${cls}">${val}</span></div>`;
@@ -1021,46 +1186,6 @@ function closeDetail() {
   document.getElementById('dec-hint').style.display = '';
   const body = document.getElementById('dbody');
   body.style.display = 'none'; body.innerHTML = '';
-}
-
-// ── Bit strips ───────────────────────────────────────────────────────────────
-
-function makeBField(strip, label, bits, raw, cls) {
-  const w = Math.max(10, bits.length * 9);
-  const el = document.createElement('div');
-  el.className = `bf ${cls}`; el.style.cssText = `width:${w}px;min-width:${w}px`;
-  let v = 0n;
-  bits.forEach((b,i) => { v |= ((raw>>BigInt(b))&1n) << BigInt(bits.length-1-i); });
-  const vs = bits.length===1 ? v.toString() : v.toString(16).padStart(Math.ceil(bits.length/4),'0');
-  el.innerHTML = `<div class="bfl">${label}</div><div class="bfv">${vs}</div>`;
-  strip.appendChild(el);
-}
-
-function renderAABits(raw) {
-  const strip = document.getElementById('bstrip');
-  const F = (l,b,c) => makeBField(strip,l,b,raw,c);
-  F('[63]',[63],'f-up'); F('[62:59]',[62,61,60,59],'f-up');
-  F('[58:55]',[58,57,56,55],'f-res'); F('UXN',[54],'f-up'); F('PXN',[53],'f-up');
-  F('Cont',[52],'f-up'); F('DBM',[51],'f-up'); F('[50:48]',[50,49,48],'f-res');
-  F('OA[47:12]',Array.from({length:36},(_,i)=>47-i),'f-oa');
-  F('nG',[11],'f-ctl'); F('AF',[10],'f-ctl'); F('SH',[9,8],'f-ctl');
-  F('AP',[7,6],'f-ctl'); F('NS',[5],'f-ctl'); F('Idx',[4,3,2],'f-ctl'); F('T/V',[1,0],'f-ctl');
-}
-
-function renderRVBits(raw, mode) {
-  const strip = document.getElementById('bstrip');
-  const cfg = rvCfg(mode);
-  const F = (l,b,c) => makeBField(strip,l,b,raw,c);
-  if (cfg.is32) {
-    F('PPN[1]',Array.from({length:12},(_,i)=>31-i),'f-oa');
-    F('PPN[0]',Array.from({length:10},(_,i)=>19-i),'f-oa');
-  } else {
-    F('[63:54]',Array.from({length:10},(_,i)=>63-i),'f-res');
-    F('PPN[53:10]',Array.from({length:44},(_,i)=>53-i),'f-oa');
-  }
-  F('RSW',[9,8],'f-res'); F('D',[7],'f-rwx'); F('A',[6],'f-rwx');
-  F('G',[5],'f-rwx'); F('U',[4],'f-rwx'); F('X',[3],'f-rwx'); F('W',[2],'f-rwx');
-  F('R',[1],'f-rwx'); F('V',[0],'f-ctl');
 }
 
 // ══ Dump parsing ═════════════════════════════════════════════════════════════
