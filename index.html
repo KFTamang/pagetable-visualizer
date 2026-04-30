@@ -63,12 +63,24 @@ input[type=file] { display:none; }
 
 /* ── left pane ── */
 #lpane { width:360px; flex-shrink:0; display:flex; flex-direction:column;
-         border-right:1px solid var(--border); overflow:hidden; }
+         border-right:1px solid var(--border); overflow:hidden;
+         transition:width .15s ease; }
+#lpane.collapsed { width:24px; }
+#lpane.collapsed > :not(#lpane-hdr) { display:none; }
 #lpane-hdr { flex-shrink:0; padding:6px 12px; background:var(--surface);
              border-bottom:1px solid var(--border); display:flex; align-items:center;
              justify-content:space-between; gap:8px; }
+#lpane.collapsed #lpane-hdr { padding:8px 3px; flex-direction:column;
+                               justify-content:flex-start; gap:10px;
+                               border-bottom:none; border-right:1px solid var(--border); }
+#lpane.collapsed #lpane-hdr > span { display:none; }
+#lpane.collapsed .lhdr-right > :not(#lpane-hide) { display:none; }
 #lpane-hdr span { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; }
 .lhdr-right { display:flex; align-items:center; gap:6px; }
+#lpane-hide { background:none; border:1px solid var(--border); color:var(--dim);
+              font:11px/1 var(--mono); padding:2px 5px; border-radius:var(--r);
+              cursor:pointer; flex-shrink:0; transition:all .12s; }
+#lpane-hide:hover { border-color:var(--blue); color:var(--blue); }
 .load-btn { background:var(--raised); border:1px solid var(--border); color:var(--dim);
             font:11px/1 var(--mono); padding:3px 8px; border-radius:var(--r);
             cursor:pointer; transition:all .12s; white-space:nowrap; }
@@ -127,7 +139,7 @@ input[type=file] { display:none; }
 .pte-card.active   { background:rgba(107,156,247,.10); border-left-color:var(--blue); }
 .pte-card.tx-path  { background:rgba(232,164,74,.12);  border-left-color:var(--orange); }
 .pte-card.sel-leaf { background:rgba(78,201,148,.08);  border-left-color:var(--green); }
-.pte-card.inv      { opacity:.3; }
+.pte-card.inv      { opacity:.72; }
 .pc-idx  { font-size:10px; color:var(--muted); width:26px; text-align:right; flex-shrink:0; }
 .pc-va   { font-size:10px; color:var(--dim); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pc-oa   { font-size:10px; color:var(--yellow); flex-shrink:0; }
@@ -143,13 +155,12 @@ input[type=file] { display:none; }
 .b-pge { background:rgba(78,201,148,.15);  color:var(--green); }
 .b-inv { background:rgba(74,80,104,.20);   color:var(--muted); }
 
-/* diagram toolbar (inv toggle) */
-#diag-toolbar { position:absolute; top:8px; right:8px; display:flex; gap:6px; z-index:5; }
-.pill { font:11px/1 var(--mono); color:var(--dim); background:var(--surface);
-        border:1px solid var(--border); padding:3px 9px; border-radius:20px;
-        cursor:pointer; transition:all .12s; }
-.pill:hover { border-color:var(--blue); color:var(--blue); }
-.pill.on { border-color:var(--blue); color:var(--blue); background:rgba(107,156,247,.1); }
+/* invalid PTEs checkbox */
+#inv-label { display:flex; align-items:center; gap:5px; align-self:flex-end;
+             padding-bottom:6px; cursor:pointer; font:11px/1 var(--mono);
+             color:var(--dim); user-select:none; }
+#inv-label:hover { color:var(--text); }
+#inv-btn[type=checkbox] { accent-color:var(--blue); width:13px; height:13px; cursor:pointer; }
 
 /* welcome */
 #welcome { display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -221,23 +232,26 @@ input[type=file] { display:none; }
 .bf-desc.f-rwx { background:#0a180a; } .bf-desc.f-res { background:var(--bg); }
 .bf-desc.f-up  { background:#150a22; }
 
-/* ── field description list ── */
-.fdescs { display:flex; flex-direction:column; gap:3px; margin-top:6px; }
-.fdesc-item { border-radius:3px; overflow:hidden; border:1px solid var(--border); }
-.fdesc-hdr  { display:flex; align-items:baseline; gap:5px; padding:3px 6px; }
-.fdesc-name { font-size:8px; font-weight:700; padding:1px 4px; border-radius:2px;
-              color:var(--bg); flex-shrink:0; }
-.fdesc-bits { font-size:9px; color:var(--dim); flex:1; }
-.fdesc-val  { font-size:9px; color:var(--yellow); font-weight:600; }
-.fdesc-txt  { font-size:10px; padding:3px 6px 4px; color:var(--text); line-height:1.35; }
-.fdesc-item.f-oa  .fdesc-hdr { background:#152840; } .fdesc-item.f-oa  .fdesc-name { background:var(--blue); }
-.fdesc-item.f-ctl .fdesc-hdr { background:#221c0e; } .fdesc-item.f-ctl .fdesc-name { background:var(--yellow); color:#000; }
-.fdesc-item.f-rwx .fdesc-hdr { background:#142514; } .fdesc-item.f-rwx .fdesc-name { background:var(--green); color:#000; }
-.fdesc-item.f-res .fdesc-hdr { background:var(--raised); } .fdesc-item.f-res .fdesc-name { background:var(--muted); }
-.fdesc-item.f-up  .fdesc-hdr { background:#221436; } .fdesc-item.f-up  .fdesc-name { background:var(--purple); }
-.fdesc-item.f-oa  .fdesc-txt { background:#0d1a26; } .fdesc-item.f-ctl .fdesc-txt { background:#180f00; }
-.fdesc-item.f-rwx .fdesc-txt { background:#0a180a; } .fdesc-item.f-res .fdesc-txt { background:var(--bg); display:none; }
-.fdesc-item.f-up  .fdesc-txt { background:#150a22; }
+/* ── field description list (RVRF style) ── */
+.fdescs { display:flex; flex-direction:column; gap:2px; margin-top:8px; }
+.fdesc-item { border-left:3px solid var(--border); padding:4px 8px 4px 10px;
+              border-radius:0 3px 3px 0; }
+.fdesc-item.f-oa  { border-color:var(--blue);   background:rgba(107,156,247,.05); }
+.fdesc-item.f-ctl { border-color:var(--yellow);  background:rgba(232,197,109,.05); }
+.fdesc-item.f-rwx { border-color:var(--green);   background:rgba(78,201,148,.05); }
+.fdesc-item.f-res { border-color:var(--muted);   opacity:.4; }
+.fdesc-item.f-up  { border-color:var(--purple);  background:rgba(180,141,245,.05); }
+.fdesc-hdr  { display:flex; align-items:baseline; gap:8px; }
+.fdesc-name { font-size:11px; font-weight:700; flex:1; }
+.fdesc-item.f-oa  .fdesc-name { color:var(--blue); }
+.fdesc-item.f-ctl .fdesc-name { color:var(--yellow); }
+.fdesc-item.f-rwx .fdesc-name { color:var(--green); }
+.fdesc-item.f-res .fdesc-name { color:var(--muted); }
+.fdesc-item.f-up  .fdesc-name { color:var(--purple); }
+.fdesc-bits { font-size:9px; color:var(--dim); }
+.fdesc-eq   { font-size:9px; color:var(--muted); }
+.fdesc-val  { font-size:10px; color:var(--cyan); font-family:var(--mono); }
+.fdesc-desc { font-size:10px; color:var(--text); line-height:1.4; margin-top:2px; opacity:.85; }
 
 ::-webkit-scrollbar { width:5px; height:5px; }
 ::-webkit-scrollbar-track { background:var(--bg); }
@@ -306,6 +320,11 @@ input[type=file] { display:none; }
   </div>
   <button id="translate-btn">Translate →</button>
   <span id="tx-status"></span>
+  <div class="vsep"></div>
+  <label id="inv-label">
+    <input type="checkbox" id="inv-btn">
+    Hide Invalid PTEs
+  </label>
 </div>
 
 <div id="main">
@@ -317,6 +336,7 @@ input[type=file] { display:none; }
         <input type="text" id="in-off" placeholder="offset 0x0" style="width:88px;font-size:11px;padding:3px 6px">
         <label class="load-btn" for="finput">Load file</label>
         <input type="file" id="finput" accept=".xxd,.txt,.hex,.log,.dump">
+        <button id="lpane-hide" title="Collapse hex dump pane">◀</button>
       </div>
     </div>
     <textarea id="dump-text" placeholder="Paste xxd / hexdump -C output here, or load a file…&#10;&#10;Examples:&#10;  xxd -a firmware.bin > dump.xxd&#10;  hexdump -C mem.bin > dump.hex"></textarea>
@@ -330,9 +350,6 @@ input[type=file] { display:none; }
     </div>
     <div id="rpane-body">
       <div id="diagram-scroll">
-        <div id="diag-toolbar">
-          <button class="pill" id="inv-btn">show invalid</button>
-        </div>
         <div id="diagram-content">
           <div id="welcome">
             <h2>No dump loaded</h2>
@@ -572,7 +589,7 @@ const S = {
   rvMode:'sv39',
   // cols: [{tablePA, level, vaBase, label, activeIdx}]
   cols: [],
-  showInvalid: false,
+  showInvalid: true,
   detailCol: -1, detailIdx: -1,
   txPath: null,    // Set<"colIdx-pteIdx"> while a translation is active
   txResult: null,  // {va, pa, kind, ls} | {va, pa:null, fault} | null
@@ -1096,14 +1113,14 @@ function buildBitTable(raw, fieldDefs, totalBits) {
   return html;
 }
 
-// Build a vertical list of per-field descriptions.
+// Build RVRF-style field description list.
 function buildFieldDescs(raw, fieldDefs) {
   const sorted = [...fieldDefs].sort((a,b) => b.hi - a.hi);
   let html = '<div class="fdescs">';
   for (const f of sorted) {
     const span = f.hi - f.lo + 1;
     const val  = (raw >> BigInt(f.lo)) & ((1n << BigInt(span)) - 1n);
-    const vs   = span <= 1  ? val.toString()
+    const vs   = span === 1  ? val.toString()
                : span <= 12 ? `0b${val.toString(2).padStart(span,'0')}`
                :              `0x${val.toString(16)}`;
     const txt  = f.desc ? f.desc(val, raw) : '';
@@ -1112,9 +1129,10 @@ function buildFieldDescs(raw, fieldDefs) {
       <div class="fdesc-hdr">
         <span class="fdesc-name">${esc(f.name)}</span>
         <span class="fdesc-bits">${bits}</span>
+        <span class="fdesc-eq">=</span>
         <span class="fdesc-val">${vs}</span>
       </div>`;
-    if (txt) html += `<div class="fdesc-txt">${esc(txt)}</div>`;
+    if (txt) html += `<div class="fdesc-desc">${esc(txt)}</div>`;
     html += `</div>`;
   }
   html += '</div>';
@@ -1439,10 +1457,17 @@ document.getElementById('in-addr').addEventListener('keydown', e => { if(e.key==
 document.getElementById('translate-btn').addEventListener('click', doTranslate);
 document.getElementById('va-input').addEventListener('keydown', e => { if(e.key==='Enter') doTranslate(); });
 document.getElementById('dclose').addEventListener('click', () => { closeDetail(); renderDiagram(); });
-document.getElementById('inv-btn').addEventListener('click', () => {
-  S.showInvalid = !S.showInvalid;
-  document.getElementById('inv-btn').classList.toggle('on', S.showInvalid);
+document.getElementById('inv-btn').addEventListener('change', () => {
+  S.showInvalid = !document.getElementById('inv-btn').checked;
   renderDiagram();
+});
+document.getElementById('lpane-hide').addEventListener('click', () => {
+  const pane = document.getElementById('lpane');
+  const btn  = document.getElementById('lpane-hide');
+  const collapsed = pane.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▶' : '◀';
+  btn.title = collapsed ? 'Expand hex dump pane' : 'Collapse hex dump pane';
+  if (S.cols.length) requestAnimationFrame(drawArrows);
 });
 document.querySelectorAll('.arch-tab').forEach(t => t.addEventListener('click', () => setArch(t.dataset.arch)));
 
