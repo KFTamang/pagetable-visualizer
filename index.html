@@ -1481,8 +1481,70 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Initialise level selector on load
-initDecLevel();
+// ══ Default example ══════════════════════════════════════════════════════════
+
+function loadDefaultExample() {
+  // AArch64, 4K granule, 48-bit VA  →  root = L0
+  // L0 table @ 0x1000  →  L1 table @ 0x2000  →  L2 table @ 0x3000
+  // L2 has 512 × 2MB block descriptors (AF=1, SH=ISH, AP=EL1-RW, AttrIdx=0)
+  // covering PA 0x00000000 – 0x3FFFFFFF  (first 1 GB, identity mapped)
+
+  const lines = [
+    '# AArch64 · 3-level (L0 → L1 → L2) · 512 × 2 MB blocks = 1 GB identity map',
+    '#',
+    '# L0 table @ 0x1000  (entry 0 = table → L1 @ 0x2000)',
+    '00001000: 03 20 00 00 00 00 00 00  00 00 00 00 00 00 00 00',
+    '#',
+    '# L1 table @ 0x2000  (entry 0 = table → L2 @ 0x3000)',
+    '00002000: 03 30 00 00 00 00 00 00  00 00 00 00 00 00 00 00',
+    '#',
+    '# L2 table @ 0x3000  (512 entries; entry i → 2 MB block at PA = i × 2 MB)',
+    '# block descriptor flags: AF=1, SH=ISH(3), AP=00(EL1-RW), AttrIdx=0 → 0x701',
+  ];
+
+  for (let row = 0; row < 256; row++) {
+    const addr = 0x3000 + row * 16;
+    const bytes = [];
+    for (let e = 0; e < 2; e++) {
+      const v = (BigInt(row * 2 + e) << 21n) | 0x701n;  // OA | AF | ISH | block
+      for (let b = 0; b < 8; b++)
+        bytes.push(Number((v >> BigInt(b * 8)) & 0xFFn).toString(16).padStart(2, '0'));
+    }
+    lines.push(
+      addr.toString(16).padStart(8, '0') + ': ' +
+      bytes.slice(0, 8).join(' ') + '  ' + bytes.slice(8).join(' ')
+    );
+  }
+
+  document.getElementById('dump-text').value = lines.join('\n');
+
+  // Set config selectors to match the generated table
+  document.getElementById('in-gran').value   = '4096';
+  document.getElementById('in-vabits').value = '48';
+  document.getElementById('in-el').value     = '1';
+  document.getElementById('in-addr').value   = '0x1000';
+
+  doParse();
+
+  // Mirror what doWalk() would set on S
+  S.gran = 4096; S.gs = 12; S.vaBits = 48; S.el = 1;
+  S.aaRoot = aaRootLevel(S.vaBits, S.gs);  // = 0  (L0 is root)
+
+  // Pre-expand all three levels so the diagram opens fully
+  S.cols = [
+    { tablePA: 0x1000, level: 0, vaBase: 0n, label: 'Root (L0)', activeIdx: 0 },
+    { tablePA: 0x2000, level: 1, vaBase: 0n, label: 'L0[0]',     activeIdx: 0 },
+    { tablePA: 0x3000, level: 2, vaBase: 0n, label: 'L1[0]',     activeIdx: null },
+  ];
+
+  S.detailCol = -1; S.detailIdx = -1;
+  S.txPath = null; S.txResult = null;
+  initDecLevel();
+  renderDiagram();
+}
+
+// Load the built-in 3-level identity-map example on startup
+loadDefaultExample();
 </script>
 </body>
 </html>
