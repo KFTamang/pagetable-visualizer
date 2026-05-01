@@ -229,12 +229,13 @@ input[type=file] { display:none; }
 .bf-bit.f-rwx { background:#142514; }
 .bf-bit.f-res { background:var(--raised); }
 .bf-bit.f-up  { background:#221436; }
-.bf-sec   { }
-.bf-field { vertical-align:top; padding:2px 3px; border:1px solid var(--border); overflow:hidden; }
-.bf-cont  { opacity:.35; }
-.bf-bit-lbl { text-align:center; font-size:8px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.bf-bit-lbl.f-oa  { background:var(--blue);  color:var(--bg); }
-.bf-bit-lbl.f-res { background:var(--muted); color:var(--bg); }
+.bf-field    { vertical-align:top; padding:2px 3px; border:1px solid var(--border); overflow:hidden; }
+.bf-name-row { border-bottom:none; padding-bottom:0; }
+.bf-val-row  { border-top:none; padding-top:0; }
+.bf-cont     { opacity:.35; }
+.fattr.fld-hl    { background:rgba(255,255,255,.12) !important; outline:1px solid rgba(255,255,255,.15); }
+.bf-field.fld-hl { filter:brightness(1.8); }
+.bf-bit.fld-hl   { filter:brightness(1.8); }
 .bf-fname { font-size:8px; font-weight:700; color:var(--bg); padding:1px 2px; border-radius:2px;
             display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .bf-fval  { font-size:8px; color:var(--dim); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -252,7 +253,7 @@ input[type=file] { display:none; }
 
 /* ── compact field attribute list ── */
 .fattrs { display:flex; flex-direction:column; gap:1px; margin-top:4px; }
-.fattr  { display:grid; grid-template-columns:52px 44px 1fr; align-items:baseline;
+.fattr  { display:grid; grid-template-columns:52px 72px 1fr; align-items:baseline;
           gap:0 5px; padding:2px 3px; border-radius:2px; }
 .fattr.f-res { opacity:.45; }
 .fattr.f-oa  { background:rgba(107,156,247,.04); }
@@ -1111,35 +1112,26 @@ function buildBitTable(raw, fieldDefs, totalBits) {
 
     html += '<div class="bf-sec"><table class="bf-table"><tbody>';
 
-    // Row 1 — individual bit values for every bit, tinted by field type
+    // Row 1 — bit numbers (defines column structure)
     html += '<tr>';
-    for (const f of full) {
-      const oHi = Math.min(f.hi, secHi);
-      const oLo = Math.max(f.lo, secLo);
-      if (oHi < oLo) continue;
-      for (let b = oHi; b >= oLo; b--) {
-        const v = Number((raw >> BigInt(b)) & 1n);
-        html += `<td class="bf-bit bv${v} ${f.cls}">${v}</td>`;
-      }
-    }
+    for (let b = secHi; b >= secLo; b--) html += `<td class="bf-num">${b}</td>`;
     html += '</tr>';
 
-    // Row 2 — bit numbers; OA/RES get colored merged label, others get plain number
+    // Row 2 — field name with colored label
     html += '<tr>';
     for (const f of full) {
       const oHi = Math.min(f.hi, secHi);
       const oLo = Math.max(f.lo, secLo);
       if (oHi < oLo) continue;
       const oSpan = oHi - oLo + 1;
-      if (f.cls === 'f-oa' || f.cls === 'f-res') {
-        html += `<td colspan="${oSpan}" class="bf-bit bf-bit-lbl ${f.cls}">${esc(f.name)}</td>`;
-      } else {
-        for (let b = oHi; b >= oLo; b--) html += `<td class="bf-num">${b}</td>`;
-      }
+      const isMSB = f.hi <= secHi && f.hi >= secLo;
+      html += isMSB
+        ? `<td colspan="${oSpan}" class="bf-field bf-name-row ${f.cls}" data-field="${f.hi}-${f.lo}"><div class="bf-fname">${esc(f.name)}</div></td>`
+        : `<td colspan="${oSpan}" class="bf-field bf-name-row bf-cont ${f.cls}" data-field="${f.hi}-${f.lo}"></td>`;
     }
     html += '</tr>';
 
-    // Row 3 — field cells clipped to this section
+    // Row 3 — decoded field value
     html += '<tr>';
     for (const f of full) {
       const oHi = Math.min(f.hi, secHi);
@@ -1147,14 +1139,28 @@ function buildBitTable(raw, fieldDefs, totalBits) {
       if (oHi < oLo) continue;
       const oSpan = oHi - oLo + 1;
       const fSpan = f.hi - f.lo + 1;
-      const val = (raw >> BigInt(f.lo)) & ((1n << BigInt(fSpan)) - 1n);
-      const vs = fSpan <= 1  ? val.toString()
-               : fSpan <= 12 ? `0b${val.toString(2).padStart(fSpan,'0')}`
-               :               `0x${val.toString(16)}`;
-      if (f.hi <= secHi && f.hi >= secLo) {
-        html += `<td colspan="${oSpan}" class="bf-field ${f.cls}"><div class="bf-fname">${esc(f.name)}</div><div class="bf-fval">${vs}</div></td>`;
+      const isMSB = f.hi <= secHi && f.hi >= secLo;
+      if (isMSB) {
+        const val = (raw >> BigInt(f.lo)) & ((1n << BigInt(fSpan)) - 1n);
+        const vs = fSpan <= 1  ? val.toString()
+                 : fSpan <= 12 ? `0b${val.toString(2).padStart(fSpan,'0')}`
+                 :               `0x${val.toString(16)}`;
+        html += `<td colspan="${oSpan}" class="bf-field bf-val-row ${f.cls}" data-field="${f.hi}-${f.lo}"><div class="bf-fval">${vs}</div></td>`;
       } else {
-        html += `<td colspan="${oSpan}" class="bf-field bf-cont ${f.cls}"></td>`;
+        html += `<td colspan="${oSpan}" class="bf-field bf-val-row bf-cont ${f.cls}" data-field="${f.hi}-${f.lo}"></td>`;
+      }
+    }
+    html += '</tr>';
+
+    // Row 4 — individual bit values, tinted by field type
+    html += '<tr>';
+    for (const f of full) {
+      const oHi = Math.min(f.hi, secHi);
+      const oLo = Math.max(f.lo, secLo);
+      if (oHi < oLo) continue;
+      for (let b = oHi; b >= oLo; b--) {
+        const v = Number((raw >> BigInt(b)) & 1n);
+        html += `<td class="bf-bit bv${v} ${f.cls}" data-field="${f.hi}-${f.lo}">${v}</td>`;
       }
     }
     html += '</tr>';
@@ -1179,9 +1185,9 @@ function buildFieldDescs(raw, fieldDefs) {
     const bits = f.hi === f.lo ? `[${f.hi}]` : `[${f.hi}:${f.lo}]`;
     let txt = '';
     if (f.desc) { try { const r = f.desc(val, raw); if (r != null && r !== '') txt = String(r); } catch(e) {} }
-    html += '<div class="fattr ' + f.cls + '">'
+    html += '<div class="fattr ' + f.cls + '" data-field="' + f.hi + '-' + f.lo + '">'
           + '<span class="fat-name">' + esc(f.name) + '</span>'
-          + '<span class="fat-val">' + bits + '=' + vs + '</span>'
+          + '<span class="fat-val">' + vs + '</span>'
           + '<span class="fat-desc">' + esc(txt) + '</span>'
           + '</div>';
   }
@@ -1678,6 +1684,24 @@ function loadDefaultExample() {
     handle.classList.remove('dragging');
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
+  });
+})();
+
+// Cross-section hover highlight for field descriptions ↔ bit fields
+(function() {
+  let hlFid = null;
+  const body = document.getElementById('dbody');
+  body.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-field]');
+    const fid = el ? el.dataset.field : null;
+    if (fid === hlFid) return;
+    if (hlFid) body.querySelectorAll(`[data-field="${hlFid}"]`).forEach(x => x.classList.remove('fld-hl'));
+    hlFid = fid;
+    if (fid) body.querySelectorAll(`[data-field="${fid}"]`).forEach(x => x.classList.add('fld-hl'));
+  });
+  body.addEventListener('mouseleave', () => {
+    if (hlFid) body.querySelectorAll(`[data-field="${hlFid}"]`).forEach(x => x.classList.remove('fld-hl'));
+    hlFid = null;
   });
 })();
 
