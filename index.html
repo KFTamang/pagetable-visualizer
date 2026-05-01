@@ -175,8 +175,12 @@ input[type=file] { display:none; }
 #welcome code { color:var(--cyan); }
 
 /* ── decoder / detail pane (always visible) ── */
-#dpane { flex-shrink:0; width:292px; border-left:1px solid var(--border);
-         background:var(--surface); display:flex; flex-direction:column; }
+#dpane { flex-shrink:0; width:292px; min-width:200px; max-width:600px;
+         border-left:1px solid var(--border);
+         background:var(--surface); display:flex; flex-direction:column; position:relative; }
+#dpane-resize { position:absolute; left:0; top:0; bottom:0; width:4px;
+                cursor:col-resize; z-index:10; }
+#dpane-resize:hover, #dpane-resize.dragging { background:var(--blue); opacity:.5; }
 #dhdr { flex-shrink:0; padding:6px 12px; border-bottom:1px solid var(--border);
         display:flex; align-items:center; justify-content:space-between; }
 #dtitle { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; }
@@ -212,18 +216,28 @@ input[type=file] { display:none; }
 .draw { color:var(--yellow); font-size:11px; background:var(--raised);
         padding:5px 8px; border-radius:var(--r); word-break:break-all; margin-bottom:6px; }
 /* ── bit-field table ── */
-.bf-wrap  { overflow-x:auto; margin-top:4px; }
-.bf-table { border-collapse:collapse; white-space:nowrap; font-family:var(--mono); }
+.bf-sections { display:flex; flex-direction:column; gap:5px; margin-top:4px; }
+.bf-table { border-collapse:collapse; font-family:var(--mono); width:100%; table-layout:fixed; }
 .bf-num   { font-size:7px; color:var(--muted); text-align:center; padding:1px 0;
             border:1px solid var(--border); min-width:14px; }
 .bf-bit   { font-size:9px; font-weight:600; text-align:center; padding:2px 0;
             border:1px solid var(--border); min-width:14px; }
-.bv1 { color:var(--cyan); background:rgba(93,208,232,.08); }
+.bv1 { color:var(--cyan); }
 .bv0 { color:var(--muted); }
-.bf-field { vertical-align:top; padding:2px 3px; border:1px solid var(--border); }
-.bf-fname { font-size:8px; color:var(--bg); padding:1px 2px; border-radius:2px;
-            font-weight:700; display:inline-block; white-space:nowrap; }
-.bf-fval  { font-size:8px; color:var(--dim); margin-top:1px; white-space:nowrap; }
+.bf-bit.f-oa  { background:#152840; }
+.bf-bit.f-ctl { background:#221c0e; }
+.bf-bit.f-rwx { background:#142514; }
+.bf-bit.f-res { background:var(--raised); }
+.bf-bit.f-up  { background:#221436; }
+.bf-sec   { }
+.bf-field { vertical-align:top; padding:2px 3px; border:1px solid var(--border); overflow:hidden; }
+.bf-cont  { opacity:.35; }
+.bf-bit-lbl { text-align:center; font-size:8px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bf-bit-lbl.f-oa  { background:var(--blue);  color:var(--bg); }
+.bf-bit-lbl.f-res { background:var(--muted); color:var(--bg); }
+.bf-fname { font-size:8px; font-weight:700; color:var(--bg); padding:1px 2px; border-radius:2px;
+            display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bf-fval  { font-size:8px; color:var(--dim); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .bf-desc  { vertical-align:top; padding:2px 3px; border:1px solid var(--border); border-top:none; }
 .bf-dtext { font-size:9px; line-height:1.4; background:rgba(232,197,109,.08);
             padding:2px 3px; border-radius:2px; color:var(--text); white-space:normal; }
@@ -236,26 +250,24 @@ input[type=file] { display:none; }
 .bf-desc.f-rwx { background:#0a180a; } .bf-desc.f-res { background:var(--bg); }
 .bf-desc.f-up  { background:#150a22; }
 
-/* ── field description list (RVRF style) ── */
-.fdescs { display:flex; flex-direction:column; gap:2px; margin-top:8px; }
-.fdesc-item { border-left:3px solid var(--border); padding:4px 8px 4px 10px;
-              border-radius:0 3px 3px 0; }
-.fdesc-item.f-oa  { border-color:var(--blue);   background:rgba(107,156,247,.05); }
-.fdesc-item.f-ctl { border-color:var(--yellow);  background:rgba(232,197,109,.05); }
-.fdesc-item.f-rwx { border-color:var(--green);   background:rgba(78,201,148,.05); }
-.fdesc-item.f-res { border-color:var(--muted);   opacity:.4; }
-.fdesc-item.f-up  { border-color:var(--purple);  background:rgba(180,141,245,.05); }
-.fdesc-hdr  { display:flex; align-items:baseline; gap:8px; }
-.fdesc-name { font-size:11px; font-weight:700; flex:1; }
-.fdesc-item.f-oa  .fdesc-name { color:var(--blue); }
-.fdesc-item.f-ctl .fdesc-name { color:var(--yellow); }
-.fdesc-item.f-rwx .fdesc-name { color:var(--green); }
-.fdesc-item.f-res .fdesc-name { color:var(--muted); }
-.fdesc-item.f-up  .fdesc-name { color:var(--purple); }
-.fdesc-bits { font-size:9px; color:var(--dim); }
-.fdesc-eq   { font-size:9px; color:var(--muted); }
-.fdesc-val  { font-size:10px; color:var(--cyan); font-family:var(--mono); }
-.fdesc-desc { font-size:10px; color:var(--text); line-height:1.4; margin-top:2px; opacity:.85; }
+/* ── compact field attribute list ── */
+.fattrs { display:flex; flex-direction:column; gap:1px; margin-top:4px; }
+.fattr  { display:grid; grid-template-columns:52px 44px 1fr; align-items:baseline;
+          gap:0 5px; padding:2px 3px; border-radius:2px; }
+.fattr.f-res { opacity:.45; }
+.fattr.f-oa  { background:rgba(107,156,247,.04); }
+.fattr.f-ctl { background:rgba(232,197,109,.04); }
+.fattr.f-rwx { background:rgba(78,201,148,.04); }
+.fattr.f-up  { background:rgba(180,141,245,.04); }
+.fat-lhs { display:contents; }
+.fat-name { font-size:9px; font-weight:700; color:var(--dim); }
+.fattr.f-oa  .fat-name { color:var(--blue); }
+.fattr.f-ctl .fat-name { color:var(--yellow); }
+.fattr.f-rwx .fat-name { color:var(--green); }
+.fattr.f-res .fat-name { color:var(--muted); }
+.fattr.f-up  .fat-name { color:var(--purple); }
+.fat-val  { font-size:9px; color:var(--cyan); font-family:var(--mono); }
+.fat-desc { font-size:9px; color:var(--text); line-height:1.3; }
 
 ::-webkit-scrollbar { width:5px; height:5px; }
 ::-webkit-scrollbar-track { background:var(--bg); }
@@ -367,6 +379,7 @@ input[type=file] { display:none; }
         <svg id="arrows"></svg>
       </div>
       <div id="dpane">
+        <div id="dpane-resize"></div>
         <div id="dhdr">
           <span id="dtitle">PTE Decoder</span>
           <button id="dclose" title="Clear">×</button>
@@ -1076,7 +1089,7 @@ function rvFieldDefs(raw, rvLevel, mode) {
   return defs;
 }
 
-// Build the 4-row bit-field table HTML from raw value and field definitions.
+// Build the 3-row bit-field table HTML from raw value and field definitions.
 function buildBitTable(raw, fieldDefs, totalBits) {
   const sorted = [...fieldDefs].sort((a,b) => b.hi - a.hi);
   const full = [];
@@ -1088,58 +1101,89 @@ function buildBitTable(raw, fieldDefs, totalBits) {
   }
   if (cur >= 0) full.push({name:'RES0', hi:cur, lo:0, cls:'f-res', desc:()=>''});
 
-  let html = `<div class="bf-wrap"><table class="bf-table"><tbody>`;
+  const SECS = 4;
+  const secW = totalBits / SECS;
+  let html = '<div class="bf-sections">';
 
-  // Row 1 — bit numbers
-  html += `<tr>`;
-  for (let b = totalBits-1; b >= 0; b--) html += `<td class="bf-num">${b}</td>`;
-  html += `</tr>`;
+  for (let s = 0; s < SECS; s++) {
+    const secHi = totalBits - 1 - s * secW;
+    const secLo = secHi - secW + 1;
 
-  // Row 2 — bit values (0/1)
-  html += `<tr>`;
-  for (let b = totalBits-1; b >= 0; b--) {
-    const v = Number((raw >> BigInt(b)) & 1n);
-    html += `<td class="bf-bit bv${v}">${v}</td>`;
+    html += '<div class="bf-sec"><table class="bf-table"><tbody>';
+
+    // Row 1 — individual bit values for every bit, tinted by field type
+    html += '<tr>';
+    for (const f of full) {
+      const oHi = Math.min(f.hi, secHi);
+      const oLo = Math.max(f.lo, secLo);
+      if (oHi < oLo) continue;
+      for (let b = oHi; b >= oLo; b--) {
+        const v = Number((raw >> BigInt(b)) & 1n);
+        html += `<td class="bf-bit bv${v} ${f.cls}">${v}</td>`;
+      }
+    }
+    html += '</tr>';
+
+    // Row 2 — bit numbers; OA/RES get colored merged label, others get plain number
+    html += '<tr>';
+    for (const f of full) {
+      const oHi = Math.min(f.hi, secHi);
+      const oLo = Math.max(f.lo, secLo);
+      if (oHi < oLo) continue;
+      const oSpan = oHi - oLo + 1;
+      if (f.cls === 'f-oa' || f.cls === 'f-res') {
+        html += `<td colspan="${oSpan}" class="bf-bit bf-bit-lbl ${f.cls}">${esc(f.name)}</td>`;
+      } else {
+        for (let b = oHi; b >= oLo; b--) html += `<td class="bf-num">${b}</td>`;
+      }
+    }
+    html += '</tr>';
+
+    // Row 3 — field cells clipped to this section
+    html += '<tr>';
+    for (const f of full) {
+      const oHi = Math.min(f.hi, secHi);
+      const oLo = Math.max(f.lo, secLo);
+      if (oHi < oLo) continue;
+      const oSpan = oHi - oLo + 1;
+      const fSpan = f.hi - f.lo + 1;
+      const val = (raw >> BigInt(f.lo)) & ((1n << BigInt(fSpan)) - 1n);
+      const vs = fSpan <= 1  ? val.toString()
+               : fSpan <= 12 ? `0b${val.toString(2).padStart(fSpan,'0')}`
+               :               `0x${val.toString(16)}`;
+      if (f.hi <= secHi && f.hi >= secLo) {
+        html += `<td colspan="${oSpan}" class="bf-field ${f.cls}"><div class="bf-fname">${esc(f.name)}</div><div class="bf-fval">${vs}</div></td>`;
+      } else {
+        html += `<td colspan="${oSpan}" class="bf-field bf-cont ${f.cls}"></td>`;
+      }
+    }
+    html += '</tr>';
+
+    html += '</tbody></table></div>';
   }
-  html += `</tr>`;
 
-  // Row 3 — field name + raw value
-  html += `<tr>`;
-  for (const f of full) {
-    const span = f.hi - f.lo + 1;
-    const val  = (raw >> BigInt(f.lo)) & ((1n << BigInt(span)) - 1n);
-    const vs   = span <= 1  ? val.toString()
-               : span <= 12 ? `0b${val.toString(2).padStart(span,'0')}`
-               :              `0x${val.toString(16)}`;
-    html += `<td colspan="${span}" class="bf-field ${f.cls}"><div class="bf-fname">${esc(f.name)}</div><div class="bf-fval">${vs}</div></td>`;
-  }
-  html += `</tr>`;
-
-  html += `</tbody></table></div>`;
+  html += '</div>';
   return html;
 }
 
-// Build RVRF-style field description list.
+// Build compact field attribute list: name | bits=val | description
 function buildFieldDescs(raw, fieldDefs) {
   const sorted = [...fieldDefs].sort((a,b) => b.hi - a.hi);
-  let html = '<div class="fdescs">';
+  let html = '<div class="fattrs">';
   for (const f of sorted) {
     const span = f.hi - f.lo + 1;
     const val  = (raw >> BigInt(f.lo)) & ((1n << BigInt(span)) - 1n);
     const vs   = span === 1  ? val.toString()
                : span <= 12 ? `0b${val.toString(2).padStart(span,'0')}`
                :              `0x${val.toString(16)}`;
-    const txt  = f.desc ? f.desc(val, raw) : '';
     const bits = f.hi === f.lo ? `[${f.hi}]` : `[${f.hi}:${f.lo}]`;
-    html += `<div class="fdesc-item ${f.cls}">
-      <div class="fdesc-hdr">
-        <span class="fdesc-name">${esc(f.name)}</span>
-        <span class="fdesc-bits">${bits}</span>
-        <span class="fdesc-eq">=</span>
-        <span class="fdesc-val">${vs}</span>
-      </div>`;
-    if (txt) html += `<div class="fdesc-desc">${esc(txt)}</div>`;
-    html += `</div>`;
+    let txt = '';
+    if (f.desc) { try { const r = f.desc(val, raw); if (r != null && r !== '') txt = String(r); } catch(e) {} }
+    html += '<div class="fattr ' + f.cls + '">'
+          + '<span class="fat-name">' + esc(f.name) + '</span>'
+          + '<span class="fat-val">' + bits + '=' + vs + '</span>'
+          + '<span class="fat-desc">' + esc(txt) + '</span>'
+          + '</div>';
   }
   html += '</div>';
   return html;
@@ -1151,7 +1195,7 @@ function renderDecodedBody(raw, desc, idx, va0, va1) {
   const hint = document.getElementById('dec-hint');
   const body = document.getElementById('dbody');
   hint.style.display = 'none';
-  body.style.display = '';
+  body.style.display = 'block';
 
   const isSv32 = S.arch === 'riscv' && rvCfg(S.rvMode).is32;
   const rawHex = isSv32
@@ -1196,8 +1240,8 @@ function renderDecodedBody(raw, desc, idx, va0, va1) {
     totalBits = rvCfg(mode).is32 ? 32 : 64;
   }
 
-  html += `<div class="ds"><div class="dt">Bit fields</div>${buildBitTable(raw, fieldDefs, totalBits)}</div>`;
   html += `<div class="ds"><div class="dt">Field Descriptions</div>${buildFieldDescs(raw, fieldDefs)}</div>`;
+  html += `<div class="ds"><div class="dt">Bit fields</div>${buildBitTable(raw, fieldDefs, totalBits)}</div>`;
   body.innerHTML = html;
 }
 
@@ -1411,7 +1455,7 @@ function doTranslate() {
     dbody.insertBefore(resDiv, dbody.firstChild);
   } else if (S.txResult) {
     document.getElementById('dec-hint').style.display = 'none';
-    dbody.style.display = '';
+    dbody.style.display = 'block';
     dbody.innerHTML = `<div class="ds tx-res"><div class="dt">Translation Fault</div>
       <div class="dr"><span class="dk">VA</span><span class="dv addr">${h64(S.txResult.va)}</span></div>
       <div class="dr"><span class="dk">Reason</span><span class="dv" style="color:var(--red)">${esc(S.txResult.fault)}</span></div>
@@ -1610,6 +1654,32 @@ function loadDefaultExample() {
   initDecLevel();
   renderDiagram();
 }
+
+// ── Decoder pane resize ───────────────────────────────────────────────────────
+(function() {
+  const handle = document.getElementById('dpane-resize');
+  const pane   = document.getElementById('dpane');
+  let startX, startW;
+  handle.addEventListener('mousedown', e => {
+    startX = e.clientX;
+    startW = pane.offsetWidth;
+    handle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!handle.classList.contains('dragging')) return;
+    const w = Math.min(600, Math.max(200, startW - (e.clientX - startX)));
+    pane.style.width = w + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!handle.classList.contains('dragging')) return;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  });
+})();
 
 // Load the built-in 3-level identity-map example on startup
 loadDefaultExample();
