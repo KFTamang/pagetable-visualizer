@@ -127,8 +127,6 @@ input[type=file] { display:none; }
 #diagram-scroll { flex:1; overflow:auto; position:relative; }
 #diagram-content { display:flex; flex-direction:row; align-items:flex-start;
                    padding:20px; gap:0; min-width:max-content; min-height:100%; }
-#arrows { position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
-
 /* column gap for arrows */
 .col-gap { width:52px; flex-shrink:0; }
 
@@ -221,8 +219,6 @@ input[type=file] { display:none; }
 .dk { color:var(--dim); font-size:11px; flex-shrink:0; }
 .dv { font-size:11px; text-align:right; }
 .dv.addr { color:var(--yellow); }
-.dv.set  { color:var(--green); }
-.dv.off  { color:var(--muted); }
 .draw { color:var(--yellow); font-size:11px; background:var(--raised);
         padding:5px 8px; border-radius:var(--r); word-break:break-all; margin-bottom:6px; }
 /* ── bit-field table ── */
@@ -249,17 +245,11 @@ input[type=file] { display:none; }
 .bf-fname { font-size:8px; font-weight:700; color:var(--bg); padding:1px 2px; border-radius:2px;
             display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .bf-fval  { font-size:8px; color:var(--dim); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.bf-desc  { vertical-align:top; padding:2px 3px; border:1px solid var(--border); border-top:none; }
-.bf-dtext { font-size:9px; line-height:1.4; background:rgba(232,197,109,.08);
-            padding:2px 3px; border-radius:2px; color:var(--text); white-space:normal; }
 .bf-field.f-oa  { background:#152840; } .bf-field.f-oa  .bf-fname { background:var(--blue); }
 .bf-field.f-ctl { background:#221c0e; } .bf-field.f-ctl .bf-fname { background:var(--yellow); }
 .bf-field.f-rwx { background:#142514; } .bf-field.f-rwx .bf-fname { background:var(--green); }
 .bf-field.f-res { background:var(--raised); } .bf-field.f-res .bf-fname { background:var(--muted); }
 .bf-field.f-up  { background:#221436; } .bf-field.f-up  .bf-fname { background:var(--purple); }
-.bf-desc.f-oa  { background:#0d1a26; } .bf-desc.f-ctl { background:#180f00; }
-.bf-desc.f-rwx { background:#0a180a; } .bf-desc.f-res { background:var(--bg); }
-.bf-desc.f-up  { background:#150a22; }
 
 /* ── compact field attribute list ── */
 .fattrs { display:flex; flex-direction:column; gap:1px; margin-top:4px; }
@@ -270,7 +260,6 @@ input[type=file] { display:none; }
 .fattr.f-ctl { background:rgba(232,197,109,.04); }
 .fattr.f-rwx { background:rgba(78,201,148,.04); }
 .fattr.f-up  { background:rgba(180,141,245,.04); }
-.fat-lhs { display:contents; }
 .fat-name { font-size:9px; font-weight:700; color:var(--dim); }
 .fattr.f-oa  .fat-name { color:var(--blue); }
 .fattr.f-ctl .fat-name { color:var(--yellow); }
@@ -388,7 +377,6 @@ input[type=file] { display:none; }
             <p style="margin-top:6px;color:var(--dim)">RISC-V: enter the raw <code>satp</code> CSR value.</p>
           </div>
         </div>
-        <svg id="arrows"></svg>
       </div>
       <div id="dpane">
         <div id="dpane-resize"></div>
@@ -666,7 +654,6 @@ function renderDiagram() {
       <h2>Ready</h2>
       <p>Enter the root table address and click <strong>Walk</strong>.</p>
     </div>`;
-    clearArrows();
     renderNav();
     return;
   }
@@ -686,7 +673,6 @@ function renderDiagram() {
   }
 
   renderNav();
-  requestAnimationFrame(() => requestAnimationFrame(drawArrows));
 }
 
 function buildNode(col, colIdx) {
@@ -864,11 +850,6 @@ function renderNav() {
 function isTxPath(colIdx, pteIdx) {
   return S.txPath !== null && S.txPath.has(`${colIdx}-${pteIdx}`);
 }
-
-// ══ Arrow drawing ════════════════════════════════════════════════════════════
-
-function clearArrows() {}
-function drawArrows() {}
 
 // ══ Decoder ═══════════════════════════════════════════════════════════════════
 
@@ -1220,12 +1201,6 @@ function openDetail(colIdx, idx, desc, va0, va1) {
   st.textContent = '✓'; st.className = 'ok';
 
   renderDecodedBody(desc.raw, desc, idx, va0, va1);
-  requestAnimationFrame(() => requestAnimationFrame(drawArrows));
-}
-
-function dr(key, val, flag) {
-  const cls = flag===undefined ? '' : (flag ? ' set' : ' off');
-  return `<div class="dr"><span class="dk">${key}</span><span class="dv${cls}">${val}</span></div>`;
 }
 
 function closeDetail() {
@@ -1471,7 +1446,6 @@ function doTranslate() {
     </div>`;
   }
 
-  requestAnimationFrame(() => requestAnimationFrame(drawArrows));
   setTimeout(() => {
     const sc = document.getElementById('diagram-scroll');
     sc.scrollLeft = sc.scrollWidth;
@@ -1532,7 +1506,6 @@ document.getElementById('lpane-hide').addEventListener('click', () => {
   } else {
     pane.style.width = pane.dataset.savedWidth || '';
   }
-  if (S.cols.length) requestAnimationFrame(drawArrows);
 });
 
 // ── Resizable left pane ────────────────────────────────────────────────────
@@ -1555,7 +1528,6 @@ document.getElementById('lpane-hide').addEventListener('click', () => {
     const w = Math.max(160, Math.min(startW + e.clientX - startX,
                                      Math.floor(window.innerWidth * 0.6)));
     lpane.style.width = w + 'px';
-    if (S.cols.length) requestAnimationFrame(drawArrows);
   });
 
   document.addEventListener('mouseup', () => {
@@ -1574,14 +1546,6 @@ document.getElementById('dec-lvl').addEventListener('change', doDecode);
 document.getElementById('in-gran').addEventListener('change', initDecLevel);
 document.getElementById('in-vabits').addEventListener('change', initDecLevel);
 document.getElementById('in-rvmode').addEventListener('change', () => { initDecLevel(); doDecode(); });
-
-// Redraw arrows on resize
-new ResizeObserver(() => { if (S.cols.length) requestAnimationFrame(drawArrows); })
-  .observe(document.getElementById('diagram-scroll'));
-
-document.getElementById('diagram-scroll').addEventListener('scroll', () => {
-  if (S.cols.length) requestAnimationFrame(drawArrows);
-});
 
 // Drag-and-drop onto textarea
 document.body.addEventListener('dragover', e => e.preventDefault());
@@ -1681,7 +1645,6 @@ function loadDefaultExample() {
     if (!handle.classList.contains('dragging')) return;
     const w = Math.min(600, Math.max(200, startW - (e.clientX - startX)));
     pane.style.width = w + 'px';
-    if (S.cols.length) requestAnimationFrame(drawArrows);
   });
   document.addEventListener('mouseup', () => {
     if (!handle.classList.contains('dragging')) return;
