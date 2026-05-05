@@ -1,19 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VSQQ2718YQ"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-
-    gtag('config', 'G-VSQQ2718YQ');
-  </script>
-  <link rel="stylesheet" href="style.css" />
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Page Table Visualizer</title>
+
+<title>Page Table Visualizer — AArch64 &amp; RISC-V MMU Explorer</title>
+<meta name="description" content="Interactive page table walker and PTE decoder for AArch64 (ARMv8/v9) and RISC-V (Sv32/Sv39/Sv48/Sv57). Walk multilevel page table hierarchies, decode PTEs bit-by-bit, and analyze memory mappings from hex dumps. Built for OS and hypervisor developers.">
+<meta name="keywords" content="page table visualizer, PTE decoder, AArch64, ARMv8, ARMv9, RISC-V, Sv39, Sv48, Sv57, Sv32, MMU, virtual memory, address translation, page table walk, embedded systems, OS development, hypervisor, ARM64, memory management unit, kernel development">
+<meta name="author" content="Kento Furukawa">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://kftamang.github.io/pagetable-visualizer/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kftamang.github.io/pagetable-visualizer/">
+<meta property="og:title" content="Page Table Visualizer — AArch64 &amp; RISC-V MMU Explorer">
+<meta property="og:description" content="Walk AArch64 and RISC-V page table hierarchies, decode PTEs bit-by-bit, and analyze memory mappings from hex dumps. A free browser-based tool for OS and hypervisor developers.">
+<meta property="og:locale" content="en_US">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Page Table Visualizer — AArch64 &amp; RISC-V MMU Explorer">
+<meta name="twitter:description" content="Walk AArch64 and RISC-V page table hierarchies, decode PTEs bit-by-bit, and analyze memory mappings from hex dumps.">
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Page Table Visualizer",
+  "description": "Interactive page table walker and PTE decoder for AArch64 and RISC-V. Walk multilevel page table hierarchies, decode PTEs bit-by-bit, and analyze memory mappings from hex dumps.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any (browser-based)",
+  "url": "https://kftamang.github.io/pagetable-visualizer/",
+  "author": { "@type": "Person", "name": "Kento Furukawa" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "keywords": "page table, PTE decoder, AArch64, RISC-V, Sv39, MMU, virtual memory, OS development, hypervisor"
+}
+</script>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-VSQQ2718YQ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-VSQQ2718YQ');
+</script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -384,7 +417,6 @@ input[type=file] { display:none; }
             <h2>No dump loaded</h2>
             <p>Paste a hex dump on the left, enter the root table address, and click <strong>Walk</strong>.</p>
             <p style="margin-top:8px">Formats: <code>xxd -a</code> · <code>hexdump -C</code> · plain <code>addr: hexdata</code></p>
-            <p style="margin-top:6px;color:var(--dim)">RISC-V: enter the raw <code>satp</code> CSR value.</p>
           </div>
         </div>
       </div>
@@ -561,13 +593,6 @@ class RVDesc {
       else { this.kind = 'pointer'; this.oa = this.ppn << 12n; }
     }
   }
-  attrStr() {
-    const p = [];
-    if (this.r) p.push('R'); if (this.w) p.push('W'); if (this.x) p.push('X');
-    if (this.u) p.push('U'); if (this.g) p.push('G');
-    if (this.a) p.push('A'); if (this.d) p.push('D');
-    return p.join(' ');
-  }
 }
 
 function rvRootPA(str) {
@@ -615,7 +640,7 @@ const S = {
   arch: 'aarch64',
   mem: null,
   gran:4096, gs:12, vaBits:48, el:1, aaRoot:1,
-  rvMode:'sv39',
+  rvMode: 'sv39',
   // cols: [{tablePA, level, vaBase, label, activeIdx}]
   cols: [],
   showInvalid: true,
@@ -638,14 +663,13 @@ function readEntries(frame) {
       entries.push({ idx, desc, va0, va1: va0 + (1n << BigInt(ls)) - 1n, ls });
     }
   } else {
-    const mode = S.rvMode;
-    const cfg  = rvCfg(mode);
-    const ls   = rvLevelShift(frame.level, mode);
-    const n    = rvEntryCount(mode);
+    const cfg = rvCfg(S.rvMode);
+    const ls  = rvLevelShift(frame.level, S.rvMode);
+    const n   = rvEntryCount(S.rvMode);
     for (let idx = 0; idx < n; idx++) {
       const addr = frame.tablePA + idx * (cfg.is32 ? 4 : 8);
       const raw  = (cfg.is32 ? S.mem.read32(addr) : S.mem.read64(addr)) ?? 0n;
-      const desc = new RVDesc(raw, frame.level, mode);
+      const desc = new RVDesc(raw, frame.level, S.rvMode);
       const va0  = frame.vaBase | (BigInt(idx) << BigInt(ls));
       entries.push({ idx, desc, va0, va1: va0 + (1n << BigInt(ls)) - 1n, ls });
     }
@@ -785,7 +809,7 @@ function buildPteRow(col, colIdx, idx, desc, va0, va1, ls) {
 // ══ Navigation ═══════════════════════════════════════════════════════════════
 
 function enterLevel(colIdx, idx, desc, va0) {
-  const col    = S.cols[colIdx];
+  const col     = S.cols[colIdx];
   const nextLvl = S.arch === 'aarch64' ? col.level + 1 : col.level - 1;
   const nextPA  = Number(desc.oa);
 
@@ -865,18 +889,17 @@ function isTxPath(colIdx, pteIdx) {
 
 // Populate the Level selector based on current arch config.
 function initDecLevel() {
-  const sel = document.getElementById('dec-lvl');
+  const sel  = document.getElementById('dec-lvl');
   const prev = +sel.value;
   sel.innerHTML = '';
   if (S.arch === 'aarch64') {
-    const gs  = aaGranShift(+document.getElementById('in-gran').value);
-    const vab = +document.getElementById('in-vabits').value;
+    const gs   = aaGranShift(+document.getElementById('in-gran').value);
+    const vab  = +document.getElementById('in-vabits').value;
     const root = aaRootLevel(vab, gs);
     for (let l = root; l <= 3; l++) sel.add(new Option(`L${l}`, l, false, l === prev || l === 3));
   } else {
-    const mode = document.getElementById('in-rvmode').value;
-    const rl   = rvRootLevel(mode);
-    for (let l = rl; l >= 0; l--) sel.add(new Option(`L${l}`, l, false, l === prev || l === 0));
+    const rl = rvRootLevel(S.rvMode);
+    for (let l = rl; l >= 0; l--) sel.add(new Option(`L${l}`, l, false, l === prev || l === rl));
   }
 }
 
@@ -884,8 +907,7 @@ function initDecLevel() {
 function extractRaw(str) {
   str = str.trim();
   if (!str) return null;
-  const isSv32 = S.arch === 'riscv' && rvCfg(document.getElementById('in-rvmode').value).is32;
-  const pteBytes = isSv32 ? 4 : 8;
+  const pteBytes = (S.arch === 'riscv' && rvCfg(S.rvMode).is32) ? 4 : 8;
 
   function readLE(hex) {
     const len = Math.min(hex.length >> 1, pteBytes);
@@ -939,9 +961,8 @@ function doDecode() {
     const gs = aaGranShift(+document.getElementById('in-gran').value);
     desc = new AADesc(raw, lvl, gs);
   } else {
-    const mode = document.getElementById('in-rvmode').value;
-    S.rvMode = mode;
-    desc = new RVDesc(raw, lvl, mode);
+    S.rvMode = document.getElementById('in-rvmode').value;
+    desc = new RVDesc(raw, lvl, S.rvMode);
   }
 
   status.textContent = '✓'; status.className = 'ok';
@@ -998,8 +1019,7 @@ function rvFieldDefs(raw, rvLevel, mode) {
   const cfg = rvCfg(mode);
   const defs = [];
   const v = !!(raw & 1n), r = !!(raw & 2n), w = !!(raw & 4n), x = !!(raw & 8n);
-  const isLeaf = v && (r || x) && !(r===false && w);
-  const isPtr  = v && !r && !w && !x;
+  const isPtr = v && !r && !w && !x;
 
   if (cfg.is32) {
     defs.push({name:'PPN[1]', hi:31, lo:20, cls:'f-oa',  desc: va => `PPN[1] = ${va} → PA[31:20]`});
@@ -1016,7 +1036,7 @@ function rvFieldDefs(raw, rvLevel, mode) {
   }
   defs.push({name:'D', hi:7, lo:7, cls:'f-rwx', desc: va => va?'Dirty — page has been written':'Clean — no writes since last clear'});
   defs.push({name:'A', hi:6, lo:6, cls:'f-rwx', desc: va => va?'Accessed — page has been read/written':'Not accessed since last clear'});
-  defs.push({name:'G', hi:5, lo:5, cls:'f-rwx', desc: va => va?'Global — mapping applies to all address spaces':'ASID-specific mapping'});
+  defs.push({name:'G', hi:5, lo:5, cls:'f-rwx', desc: va => va?'Global mapping (all address spaces)':'ASID-specific mapping'});
   defs.push({name:'U', hi:4, lo:4, cls:'f-rwx', desc: va => va?'User-mode accessible':'Supervisor-mode only'});
   defs.push({name:'X', hi:3, lo:3, cls:'f-rwx', desc: va => va?'Execute permission granted':'Execute not permitted'});
   defs.push({name:'W', hi:2, lo:2, cls:'f-rwx', desc: va => va?'Write permission granted':'Write not permitted'});
@@ -1024,7 +1044,7 @@ function rvFieldDefs(raw, rvLevel, mode) {
   defs.push({name:'V', hi:0, lo:0, cls:'f-ctl', desc: () => {
     if (!v) return 'Invalid — page fault on access';
     if (!r && w) return 'Invalid — R=0,W=1 is reserved';
-    if (isPtr)  return `Pointer → next-level (L${rvLevel-1}) page table`;
+    if (isPtr)  return `Pointer → next-level (L${rvLevel - 1}) page table`;
     if (rvLevel > 0) return `${fmtSize(rvLevelShift(rvLevel, mode))} superpage leaf`;
     return '4 KB page leaf';
   }});
@@ -1145,14 +1165,12 @@ function renderDecodedBody(raw, desc, idx, va0, va1) {
   body.style.display = 'block';
 
   const isSv32 = S.arch === 'riscv' && rvCfg(S.rvMode).is32;
-  const rawHex = isSv32
-    ? '0x' + (raw & 0xFFFFFFFFn).toString(16).padStart(8,'0')
-    : h64(raw);
+  const rawHex = isSv32 ? '0x' + (raw & 0xFFFFFFFFn).toString(16).padStart(8,'0') : h64(raw);
 
   const {text, cls} = descBadge(desc);
   const colMap = {'b-ptr':'var(--blue)','b-pge':'var(--green)','b-blk':'var(--orange)','b-inv':'var(--muted)'};
   const kindColor = colMap[cls] ?? 'var(--text)';
-  const lvlStr = S.arch==='aarch64' ? 'L'+desc.level : 'L'+desc.rvLevel+' ('+S.rvMode+')';
+  const lvlStr = S.arch === 'aarch64' ? 'L' + desc.level : `L${desc.rvLevel} (${S.rvMode})`;
 
   let html = `<div class="ds">
     <div class="dt">Descriptor</div>
@@ -1174,17 +1192,15 @@ function renderDecodedBody(raw, desc, idx, va0, va1) {
     </div>`;
   }
 
-  // Bit-field table (replaces both the attribute rows and old bit strip)
   let fieldDefs, totalBits;
   if (S.arch === 'aarch64') {
     const gs = aaGranShift(+document.getElementById('in-gran').value);
     fieldDefs = aaFieldDefs(raw, desc.level, gs);
     totalBits = 64;
   } else {
-    const mode = document.getElementById('in-rvmode').value;
     const rvLvl = desc.rvLevel ?? +document.getElementById('dec-lvl').value;
-    fieldDefs = rvFieldDefs(raw, rvLvl, mode);
-    totalBits = rvCfg(mode).is32 ? 32 : 64;
+    fieldDefs = rvFieldDefs(raw, rvLvl, S.rvMode);
+    totalBits = rvCfg(S.rvMode).is32 ? 32 : 64;
   }
 
   html += `<div class="ds"><div class="dt">Field Descriptions</div>${buildFieldDescs(raw, fieldDefs)}</div>`;
@@ -1195,14 +1211,11 @@ function renderDecodedBody(raw, desc, idx, va0, va1) {
 // ══ Detail panel ═════════════════════════════════════════════════════════════
 
 function openDetail(colIdx, idx, desc, va0, va1) {
-  // Sync decoder input to this entry's raw value
   const isSv32 = S.arch === 'riscv' && rvCfg(S.rvMode).is32;
-  const rawHex = isSv32
+  document.getElementById('dec-input').value = isSv32
     ? '0x' + (desc.raw & 0xFFFFFFFFn).toString(16).padStart(8,'0')
     : h64(desc.raw);
-  document.getElementById('dec-input').value = rawHex;
 
-  // Sync level selector
   const lvlEl = document.getElementById('dec-lvl');
   const lvl   = S.arch === 'aarch64' ? desc.level : desc.rvLevel;
   if ([...lvlEl.options].some(o => +o.value === lvl)) lvlEl.value = lvl;
@@ -1266,8 +1279,8 @@ function renderDumpView(text, off) {
 function highlightDumpPte(colIdx, idx) {
   const view = document.getElementById('dump-view');
   if (!view.children.length) return;
-  const isSv32 = S.arch === 'riscv' && rvCfg(S.rvMode).is32;
-  const pteAddr = S.cols[colIdx].tablePA + idx * (isSv32 ? 4 : 8);
+  const pteSize = (S.arch === 'riscv' && rvCfg(S.rvMode).is32) ? 4 : 8;
+  const pteAddr = S.cols[colIdx].tablePA + idx * pteSize;
   const prev = view.querySelector('.dl-hl');
   if (prev) prev.classList.remove('dl-hl');
   for (const d of view.querySelectorAll('.dl[data-addr]')) {
@@ -1317,6 +1330,7 @@ function doWalk() {
       rootPA = Number(BigInt(/^0x/i.test(addrStr) ? addrStr : '0x'+addrStr));
     } else {
       rootPA = rvRootPA(addrStr);
+      S.rvMode = document.getElementById('in-rvmode').value;
     }
   } catch { alert('Invalid address.'); return; }
 
@@ -1329,7 +1343,6 @@ function doWalk() {
     S.cols   = [{ tablePA:rootPA, level:S.aaRoot, vaBase:0n,
                   label:`Root (L${S.aaRoot})`, activeIdx:null }];
   } else {
-    S.rvMode = document.getElementById('in-rvmode').value;
     const rl = rvRootLevel(S.rvMode);
     S.cols   = [{ tablePA:rootPA, level:rl, vaBase:0n,
                   label:`Root (L${rl} / ${S.rvMode.toUpperCase()})`, activeIdx:null }];
@@ -1377,7 +1390,7 @@ function doTranslate() {
       break;
     }
 
-    let pteIdx, raw, desc, ls, va0, va1;
+    let pteIdx, raw, desc, ls;
 
     if (S.arch === 'aarch64') {
       const lvl = col.level;
@@ -1391,10 +1404,11 @@ function doTranslate() {
       const cfg = rvCfg(S.rvMode);
       ls = rvLevelShift(lvl, S.rvMode);
       pteIdx = Number((va >> BigInt(ls)) & BigInt(rvEntryCount(S.rvMode) - 1));
-      const pteAddr = col.tablePA + pteIdx * (cfg.is32 ? 4 : 8);
-      raw  = (cfg.is32 ? S.mem.read32(pteAddr) : S.mem.read64(pteAddr)) ?? 0n;
+      const addr = col.tablePA + pteIdx * (cfg.is32 ? 4 : 8);
+      raw  = (cfg.is32 ? S.mem.read32(addr) : S.mem.read64(addr)) ?? 0n;
       desc = new RVDesc(raw, lvl, S.rvMode);
     }
+    let va0, va1;
 
     va0 = col.vaBase | (BigInt(pteIdx) << BigInt(ls));
     va1 = va0 + (1n << BigInt(ls)) - 1n;
@@ -1462,6 +1476,7 @@ function doTranslate() {
   }, 80);
 }
 
+
 // ══ Arch switching ════════════════════════════════════════════════════════════
 
 function setArch(arch) {
@@ -1474,9 +1489,8 @@ function setArch(arch) {
   document.getElementById('in-addr').placeholder =
     arch==='aarch64' ? '0x1000' : '0x8000000000000001';
   document.getElementById('va-input').placeholder =
-    arch==='aarch64' ? '0xffff800000001000' : '0x400000001234';
-  S.cols=[]; S.detailCol=-1; S.detailIdx=-1;
-  closeDetail(); initDecLevel(); renderDiagram();
+    arch==='aarch64' ? '0xffff800000001000' : '0x0000000080001234';
+  if (arch === 'aarch64') loadAaExample(); else loadRvExample();
 }
 
 // ══ File loading ═════════════════════════════════════════════════════════════
@@ -1547,15 +1561,18 @@ document.getElementById('lpane-hide').addEventListener('click', () => {
     document.body.style.userSelect = '';
   });
 }());
+
 document.querySelectorAll('.arch-tab').forEach(t => t.addEventListener('click', () => setArch(t.dataset.arch)));
 
 // Decoder events
 document.getElementById('dec-input').addEventListener('input', doDecode);
 document.getElementById('dec-lvl').addEventListener('change', doDecode);
-// Re-populate levels when config changes (affects level list / decoding semantics)
 document.getElementById('in-gran').addEventListener('change', initDecLevel);
 document.getElementById('in-vabits').addEventListener('change', initDecLevel);
-document.getElementById('in-rvmode').addEventListener('change', () => { initDecLevel(); doDecode(); });
+document.getElementById('in-rvmode').addEventListener('change', () => {
+  S.rvMode = document.getElementById('in-rvmode').value;
+  initDecLevel(); doDecode();
+});
 
 // Drag-and-drop onto textarea
 document.body.addEventListener('dragover', e => e.preventDefault());
@@ -1576,9 +1593,9 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ══ Default example ══════════════════════════════════════════════════════════
+// ══ Built-in examples ════════════════════════════════════════════════════════
 
-function loadDefaultExample() {
+function loadAaExample() {
   // AArch64, 4K granule, 48-bit VA  →  root = L0
   // L0 table @ 0x1000  →  L1 table @ 0x2000  →  L2 table @ 0x3000
   // L2 has 512 × 2MB block descriptors (AF=1, SH=ISH, AP=EL1-RW, AttrIdx=0)
@@ -1638,6 +1655,66 @@ function loadDefaultExample() {
   renderDiagram();
 }
 
+function loadRvExample() {
+  // RISC-V Sv39, 3-level (L2 → L1 → L0), identity map
+  // L2 root @ 0x1000  (satp = 0x8000000000000001)
+  //   L2[0] = pointer → L1 @ 0x2000  (covers VA 0x000000000 – 0x03FFFFFFF, 1 GB)
+  // L1 @ 0x2000
+  //   L1[0..511] = 2 MB superpage leaves  (identity: VA == PA)
+  //   leaf flags: D=1, A=1, G=1, X=1, W=1, R=1, V=1  →  0xEF
+
+  // L2 pointer PTE: PPN(L1@0x2000) = 2  →  (2 << 10) | 0x01 = 0x0801
+  const l2pte = 0x0000000000000801n;
+
+  const lines = [
+    '# RISC-V Sv39 · 2-level (L2 → L1) · 512 × 2 MB superpages = 1 GB identity map',
+    '# satp (Sv39, ASID=0, root PA=0x1000): 0x8000000000000001',
+    '#',
+    '# L2 root table @ 0x1000  (entry 0 → L1 @ 0x2000)',
+  ];
+  // L2: one 16-byte line (entry 0 + padding)
+  const l2bytes = [];
+  for (let b = 0; b < 8; b++) l2bytes.push(Number((l2pte >> BigInt(b*8)) & 0xFFn).toString(16).padStart(2,'0'));
+  for (let b = 0; b < 8; b++) l2bytes.push('00');
+  lines.push('00001000: ' + l2bytes.slice(0,8).join(' ') + '  ' + l2bytes.slice(8).join(' '));
+
+  lines.push('#');
+  lines.push('# L1 table @ 0x2000  (512 entries; L1[i] → 2 MB superpage at PA = i × 2 MB)');
+  lines.push('# PTE[i] = (PPN << 10) | 0xEF  where PPN = i × 512');
+
+  // L1: 512 entries × 8 bytes = 4096 bytes = 256 lines of 16 bytes
+  for (let row = 0; row < 256; row++) {
+    const addr = 0x2000 + row * 16;
+    const rowBytes = [];
+    for (let e = 0; e < 2; e++) {
+      const i = row * 2 + e;
+      // PPN = i * 512  →  PTE = (i * 512 << 10) | 0xEF = (i << 19) | 0xEF
+      const pte = (BigInt(i) << 19n) | 0xEFn;
+      for (let b = 0; b < 8; b++) rowBytes.push(Number((pte >> BigInt(b*8)) & 0xFFn).toString(16).padStart(2,'0'));
+    }
+    lines.push(addr.toString(16).padStart(8,'0') + ': ' +
+               rowBytes.slice(0,8).join(' ') + '  ' + rowBytes.slice(8).join(' '));
+  }
+
+  document.getElementById('dump-text').value = lines.join('\n');
+  document.getElementById('in-rvmode').value = 'sv39';
+  document.getElementById('in-addr').value   = '0x1000';
+
+  S.rvMode = 'sv39';
+  doParse();
+
+  const rl = rvRootLevel('sv39');  // = 2
+  S.cols = [
+    { tablePA: 0x1000, level: rl, vaBase: 0n, label: 'Root (L2 / SV39)', activeIdx: 0 },
+    { tablePA: 0x2000, level: rl - 1, vaBase: 0n, label: 'L2[0]', activeIdx: null },
+  ];
+
+  S.detailCol = -1; S.detailIdx = -1;
+  S.txPath = null; S.txResult = null;
+  initDecLevel();
+  renderDiagram();
+}
+
 // ── Decoder pane resize ───────────────────────────────────────────────────────
 (function() {
   const handle = document.getElementById('dpane-resize');
@@ -1682,8 +1759,8 @@ function loadDefaultExample() {
   });
 })();
 
-// Load the built-in 3-level identity-map example on startup
-loadDefaultExample();
+// Initialize with AArch64 example on startup
+setArch('aarch64');
 </script>
 </body>
 </html>
