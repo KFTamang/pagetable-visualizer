@@ -179,7 +179,27 @@ input[type=file] { display:none; }
            border-radius:6px 6px 0 0; display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
 .col-lbl.focused { border-color:var(--blue); }
 .cl-lvl  { font-size:11px; color:var(--blue); font-weight:600; }
+.cl-from { font-size:10px; color:var(--dim); }
 .cl-addr { font-size:10px; color:var(--muted); }
+
+/* ── VA bit breakdown ── */
+.va-bits { display:flex; flex-direction:column; gap:3px; margin-top:4px; }
+.va-row  { display:flex; gap:1px; flex-wrap:nowrap; }
+.va-seg  { display:flex; flex-direction:column; align-items:center; min-width:0;
+           border-radius:2px; overflow:hidden; flex-shrink:0; }
+.va-seg-lbl  { font-size:7px; color:var(--bg); font-weight:700; padding:1px 3px;
+               white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;
+               text-align:center; }
+.va-seg-bits { font-size:7px; color:var(--muted); padding:0 2px; text-align:center; white-space:nowrap; }
+.va-seg-val  { font-size:8px; color:var(--cyan); font-family:var(--mono); padding:1px 3px;
+               text-align:center; }
+.vs-ext { background:var(--raised); } .vs-ext .va-seg-lbl { background:var(--muted); color:var(--dim); }
+.vs-l0  { background:#152840; }       .vs-l0  .va-seg-lbl { background:var(--blue); }
+.vs-l1  { background:#221c0e; }       .vs-l1  .va-seg-lbl { background:var(--yellow); }
+.vs-l2  { background:#142514; }       .vs-l2  .va-seg-lbl { background:var(--green); }
+.vs-l3  { background:#221436; }       .vs-l3  .va-seg-lbl { background:var(--purple); }
+.vs-l4  { background:#1a1010; }       .vs-l4  .va-seg-lbl { background:var(--red); }
+.vs-off { background:#0e1a1a; }       .vs-off .va-seg-lbl { background:var(--cyan); }
 .col-stats { font-size:10px; color:var(--dim); padding:2px 10px; flex-shrink:0;
              border:1px solid var(--border); border-top:none; background:var(--surface); }
 .col-body { overflow-y:auto; max-height:min(540px, calc(100vh - 175px));
@@ -634,6 +654,71 @@ function descBadge(d) {
   }
 }
 
+// ── VA bit-breakdown ─────────────────────────────────────────────────────────
+
+function vaSegments(va) {
+  const segs = [];
+  if (S.arch === 'aarch64') {
+    const gs = S.gs, vaBits = S.vaBits, root = S.aaRoot;
+    const idxBits = gs - 3;
+    const totalBits = 64;
+    if (vaBits < totalBits) {
+      const extBits = totalBits - vaBits;
+      segs.push({ name:'ext', hi:totalBits-1, lo:vaBits, cls:'vs-ext',
+                  val: Number((va >> BigInt(vaBits)) & ((1n << BigInt(extBits)) - 1n)) });
+    }
+    for (let l = root; l <= 3; l++) {
+      const lo = aaLevelShift(l, gs), hi = lo + idxBits - 1;
+      segs.push({ name:`L${l}`, hi, lo, cls:`vs-l${l}`,
+                  val: Number((va >> BigInt(lo)) & ((1n << BigInt(idxBits)) - 1n)) });
+    }
+    segs.push({ name:'off', hi:gs-1, lo:0, cls:'vs-off',
+                val: Number(va & ((1n << BigInt(gs)) - 1n)) });
+  } else {
+    const cfg = rvCfg(S.rvMode), root = rvRootLevel(S.rvMode);
+    const idxBits = cfg.idxBits, totalBits = cfg.is32 ? 32 : 64;
+    const vaBits = 12 + (root + 1) * idxBits;
+    if (vaBits < totalBits) {
+      const extBits = totalBits - vaBits;
+      segs.push({ name:'ext', hi:totalBits-1, lo:vaBits, cls:'vs-ext',
+                  val: Number((va >> BigInt(vaBits)) & ((1n << BigInt(extBits)) - 1n)) });
+    }
+    for (let l = root; l >= 0; l--) {
+      const lo = rvLevelShift(l, S.rvMode), hi = lo + idxBits - 1;
+      segs.push({ name:`L${l}`, hi, lo, cls:`vs-l${root - l}`,
+                  val: Number((va >> BigInt(lo)) & ((1n << BigInt(idxBits)) - 1n)) });
+    }
+    segs.push({ name:'off', hi:11, lo:0, cls:'vs-off',
+                val: Number(va & 0xFFFn) });
+  }
+  return segs;
+}
+
+function buildVABreakdown(va) {
+  const segs = vaSegments(va);
+  const totalBits = S.arch === 'aarch64' ? 64 : (rvCfg(S.rvMode).is32 ? 32 : 64);
+  const pxPerBit = 200 / totalBits;  // approximate pixel width per bit in 200px container
+  let labRow = '', valRow = '', bitRow = '';
+  for (const seg of segs) {
+    const bits = seg.hi - seg.lo + 1;
+    const w = Math.max(bits * pxPerBit, bits === 1 ? 10 : 14);
+    const hexDigits = Math.ceil(bits / 4);
+    const valHex = seg.val.toString(16).padStart(hexDigits, '0');
+    const bitsLbl = seg.hi === seg.lo ? `${seg.hi}` : `${seg.hi}:${seg.lo}`;
+    labRow += `<div class="va-seg ${seg.cls}" style="width:${w}px">` +
+              `<span class="va-seg-lbl">${esc(seg.name)}</span></div>`;
+    bitRow += `<div class="va-seg ${seg.cls}" style="width:${w}px;background:none">` +
+              `<span class="va-seg-bits">${bitsLbl}</span></div>`;
+    valRow += `<div class="va-seg ${seg.cls}" style="width:${w}px;background:none">` +
+              `<span class="va-seg-val">${valHex}</span></div>`;
+  }
+  return `<div class="va-bits">
+    <div class="va-row">${labRow}</div>
+    <div class="va-row">${bitRow}</div>
+    <div class="va-row">${valRow}</div>
+  </div>`;
+}
+
 // ══ App state ════════════════════════════════════════════════════════════════
 
 const S = {
@@ -681,6 +766,7 @@ function readEntries(frame) {
 
 function renderDiagram() {
   const content = document.getElementById('diagram-content');
+  const savedScrolls = [...content.querySelectorAll('.col-body')].map(b => b.scrollTop);
   content.innerHTML = '';
 
   if (!S.mem || !S.cols.length) {
@@ -692,18 +778,29 @@ function renderDiagram() {
     return;
   }
 
+  const scrollTargets = [];
   for (let i = 0; i < S.cols.length; i++) {
     const col = document.createElement('div');
     col.className = 'pt-col';
     col.id = `col-${i}`;
-    col.appendChild(buildNode(S.cols[i], i));
+    const node = buildNode(S.cols[i], i);
+    col.appendChild(node);
     content.appendChild(col);
+
+    if (savedScrolls[i] > 0) {
+      const body = node.querySelector('.col-body');
+      if (body) scrollTargets.push([body, savedScrolls[i]]);
+    }
 
     if (i < S.cols.length - 1) {
       const gap = document.createElement('div');
       gap.className = 'col-gap';
       content.appendChild(gap);
     }
+  }
+  if (scrollTargets.length) {
+    void content.offsetHeight; // force layout so max-height is applied before scrollTop
+    for (const [body, top] of scrollTargets) body.scrollTop = top;
   }
 
   renderNav();
@@ -715,7 +812,7 @@ function buildNode(col, colIdx) {
   const lbl = document.createElement('div');
   lbl.className = 'col-lbl' + (colIdx === S.cols.length - 1 ? ' focused' : '');
   lbl.id = `col-lbl-${colIdx}`;
-  lbl.innerHTML = `<span class="cl-lvl">${esc(col.label)}</span><span class="cl-addr">${hPA(col.tablePA)}</span>`;
+  lbl.innerHTML = `<span class="cl-lvl">${esc(col.label)}</span>${col.from ? `<span class="cl-from">${esc(col.from)}</span>` : ''}<span class="cl-addr">${hPA(col.tablePA)}</span>`;
   wrap.appendChild(lbl);
 
   const body = document.createElement('div');
@@ -819,7 +916,8 @@ function enterLevel(colIdx, idx, desc, va0) {
     tablePA: nextPA,
     level:   nextLvl,
     vaBase:  va0,
-    label:   `L${col.level}[${idx}]`,
+    label:   `L${nextLvl}`,
+    from:    `L${col.level}[${idx}]`,
     activeIdx: null,
   });
 
@@ -1186,6 +1284,7 @@ function renderDecodedBody(raw, desc, idx, va0, va1) {
       <div class="dr"><span class="dk">VA end</span><span class="dv addr">${h64(va1)}</span></div>
       <div class="dr"><span class="dk">Output PA</span><span class="dv addr">${h64(desc.oa)}</span></div>
     </div>`;
+    html += `<div class="ds"><div class="dt">Virtual Address Bits</div>${buildVABreakdown(va0)}</div>`;
   } else if (desc.kind !== 'invalid') {
     html += `<div class="ds"><div class="dt">Address</div>
       <div class="dr"><span class="dk">Output PA</span><span class="dv addr">${h64(desc.oa)}</span></div>
@@ -1433,7 +1532,8 @@ function doTranslate() {
         tablePA:  Number(desc.oa),
         level:    nextLvl,
         vaBase:   va0,
-        label:    `L${col.level}[${pteIdx}]`,
+        label:    `L${nextLvl}`,
+        from:     `L${col.level}[${pteIdx}]`,
         activeIdx: null,
       });
     }
