@@ -135,10 +135,12 @@ input[type=file] { display:none; }
 #dump-text { flex:1; resize:none; background:var(--bg); border:none; color:var(--cyan);
              font:11px/1.5 var(--mono); padding:10px 12px; outline:none; overflow-y:auto; }
 #dump-text::placeholder { color:var(--muted); font-style:italic; }
-#lpane.has-dump #dump-text { flex:none; height:80px; border-bottom:1px solid var(--border); }
+#lpane.has-dump #dump-text { display:none; }
 #dump-view { display:none; flex:1; overflow-y:auto; font:11px/1.5 var(--mono);
              background:var(--bg); }
 #lpane.has-dump #dump-view { display:block; }
+#dump-clear { display:none; }
+#lpane.has-dump #dump-clear { display:inline-block; }
 .dl { padding:1px 12px; white-space:pre; color:var(--cyan); line-height:1.6; }
 .dl.dl-comment { color:var(--dim); }
 .dl.dl-hl { background:rgba(107,156,247,.18); border-left:3px solid var(--blue);
@@ -415,6 +417,7 @@ input[type=file] { display:none; }
         <input type="text" id="in-off" placeholder="offset 0x0" style="width:88px;font-size:11px;padding:3px 6px">
         <label class="load-btn" for="finput">Load file</label>
         <input type="file" id="finput" accept=".xxd,.txt,.hex,.log,.dump">
+        <button id="dump-clear" class="load-btn">Clear</button>
         <button id="lpane-hide" title="Collapse hex dump pane">◀</button>
       </div>
     </div>
@@ -1517,6 +1520,9 @@ function doTranslate() {
 
     if (desc.kind === 'invalid') {
       S.txResult = { va, pa: null, fault: 'Invalid PTE (page fault)' };
+      S.detailCol = colIdx;
+      S.detailIdx = pteIdx;
+      leafEntry = { colIdx, pteIdx, desc, va0, va1 };
       break;
     } else if (isMapping(desc)) {
       const pageOff = va & ((1n << BigInt(ls)) - 1n);
@@ -1551,15 +1557,21 @@ function doTranslate() {
 
   if (leafEntry) {
     openDetail(leafEntry.colIdx, leafEntry.pteIdx, leafEntry.desc, leafEntry.va0, leafEntry.va1);
-    // Prepend translation result section into the decoder body
+    // Prepend translation result/fault section into the decoder body
     const r = S.txResult;
     const resDiv = document.createElement('div');
     resDiv.className = 'ds tx-res';
-    resDiv.innerHTML = `<div class="dt">Translation</div>
-      <div class="dr"><span class="dk">VA</span><span class="dv addr">${h64(r.va)}</span></div>
-      <div class="dr"><span class="dk">→ PA</span><span class="dv addr">${h64(r.pa)}</span></div>
-      <div class="dr"><span class="dk">Page offset</span><span class="dv">${hPA(r.va & ((1n << BigInt(r.ls)) - 1n))}</span></div>
-      <div class="dr"><span class="dk">Page size</span><span class="dv">${fmtSize(r.ls)}</span></div>`;
+    if (r.pa !== null) {
+      resDiv.innerHTML = `<div class="dt">Translation</div>
+        <div class="dr"><span class="dk">VA</span><span class="dv addr">${h64(r.va)}</span></div>
+        <div class="dr"><span class="dk">→ PA</span><span class="dv addr">${h64(r.pa)}</span></div>
+        <div class="dr"><span class="dk">Page offset</span><span class="dv">${hPA(r.va & ((1n << BigInt(r.ls)) - 1n))}</span></div>
+        <div class="dr"><span class="dk">Page size</span><span class="dv">${fmtSize(r.ls)}</span></div>`;
+    } else {
+      resDiv.innerHTML = `<div class="dt">Translation Fault</div>
+        <div class="dr"><span class="dk">VA</span><span class="dv addr">${h64(r.va)}</span></div>
+        <div class="dr"><span class="dk">Reason</span><span class="dv" style="color:var(--red)">${esc(r.fault)}</span></div>`;
+    }
     dbody.insertBefore(resDiv, dbody.firstChild);
   } else if (S.txResult) {
     document.getElementById('dec-hint').style.display = 'none';
@@ -1607,6 +1619,10 @@ function loadFile(file) {
 // ══ Events ════════════════════════════════════════════════════════════════════
 
 document.getElementById('finput').addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+document.getElementById('dump-clear').addEventListener('click', () => {
+  document.getElementById('dump-text').value = '';
+  doParse();
+});
 document.getElementById('dump-text').addEventListener('input', scheduleParse);
 document.getElementById('in-off').addEventListener('change', doParse);
 document.getElementById('walk').addEventListener('click', doWalk);
