@@ -135,12 +135,7 @@ input[type=file] { display:none; }
 #dump-text { flex:1; resize:none; background:var(--bg); border:none; color:var(--cyan);
              font:11px/1.5 var(--mono); padding:10px 12px; outline:none; overflow-y:auto; }
 #dump-text::placeholder { color:var(--muted); font-style:italic; }
-#lpane.has-dump #dump-text { display:none; }
-#dump-view { display:none; flex:1; overflow-y:auto; font:11px/1.5 var(--mono);
-             background:var(--bg); }
-#lpane.has-dump #dump-view { display:block; }
-#dump-clear { display:none; }
-#lpane.has-dump #dump-clear { display:inline-block; }
+#dump-view { display:none; }
 .dl { padding:1px 12px; white-space:pre; color:var(--cyan); line-height:1.6; }
 .dl.dl-comment { color:var(--dim); }
 .dl.dl-hl { background:rgba(107,156,247,.18); border-left:3px solid var(--blue);
@@ -417,8 +412,7 @@ input[type=file] { display:none; }
         <input type="text" id="in-off" placeholder="offset 0x0" style="width:88px;font-size:11px;padding:3px 6px">
         <label class="load-btn" for="finput">Load file</label>
         <input type="file" id="finput" accept=".xxd,.txt,.hex,.log,.dump">
-        <button id="dump-clear" class="load-btn">Clear</button>
-        <button id="lpane-hide" title="Collapse hex dump pane">◀</button>
+<button id="lpane-hide" title="Collapse hex dump pane">◀</button>
       </div>
     </div>
     <textarea id="dump-text" placeholder="Paste xxd / hexdump -C output here, or load a file…&#10;&#10;Examples:&#10;  xxd -a firmware.bin > dump.xxd&#10;  hexdump -C mem.bin > dump.hex"></textarea>
@@ -502,7 +496,7 @@ class Memory {
 
 // ══ Hex dump parser ═══════════════════════════════════════════════════════════
 
-const RE_LINE = /^(?:0x)?([0-9a-fA-F]+)[:\s]\s*((?:[0-9a-fA-F]{2}\s*)+)/;
+const RE_LINE = /^(?:0x)?([0-9a-fA-F]+)[:\s]\s*((?:(?:0x)?[0-9a-fA-F]{2}\s*)+)/i;
 
 function parseDump(text, offset = 0n) {
   const mem = new Memory();
@@ -513,7 +507,7 @@ function parseDump(text, offset = 0n) {
     if (!m) continue;
     try {
       const base = Number(BigInt('0x' + m[1]) + offset);
-      const hex  = m[2].replace(/\s+/g, '');
+      const hex  = m[2].replace(/0x/gi, '').replace(/\s+/g, '');
       const len  = Math.floor(hex.length / 2);
       const buf  = new Uint8Array(len);
       for (let i = 0; i < len; i++) buf[i] = parseInt(hex.slice(i*2, i*2+2), 16);
@@ -1027,7 +1021,7 @@ function extractRaw(str) {
   // 2. Hex dump line with address: "0x1000: c0 00 …"  or  "00001000  c0 00 …"
   const lm = RE_LINE.exec(str);
   if (lm) {
-    const v = readLE(lm[2].replace(/\s+/g, ''));
+    const v = readLE(lm[2].replace(/0x/gi, '').replace(/\s+/g, ''));
     if (v !== null) return v;
   }
 
@@ -1379,18 +1373,32 @@ function renderDumpView(text, off) {
 }
 
 function highlightDumpPte(colIdx, idx) {
-  const view = document.getElementById('dump-view');
-  if (!view.children.length) return;
+  const ta = document.getElementById('dump-text');
+  if (!ta.value) return;
   const pteSize = (S.arch === 'riscv' && rvCfg(S.rvMode).is32) ? 4 : 8;
   const pteAddr = S.cols[colIdx].tablePA + idx * pteSize;
-  const prev = view.querySelector('.dl-hl');
-  if (prev) prev.classList.remove('dl-hl');
-  for (const d of view.querySelectorAll('.dl[data-addr]')) {
-    if (pteAddr >= +d.dataset.addr && pteAddr < +d.dataset.end) {
-      d.classList.add('dl-hl');
-      d.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      break;
+  let off = 0n;
+  const ov = document.getElementById('in-off').value.trim();
+  if (ov) try { off = BigInt(/^0x/i.test(ov) ? ov : '0x' + ov); } catch {}
+  const lines = ta.value.split('\n');
+  let charPos = 0;
+  for (const raw of lines) {
+    const m = RE_LINE.exec(raw.trim());
+    if (m) {
+      try {
+        const base = Number(BigInt('0x' + m[1]) + off);
+        const len  = Math.floor(m[2].replace(/0x/gi, '').replace(/\s+/g, '').length / 2);
+        if (pteAddr >= base && pteAddr < base + len) {
+          ta.focus();
+          ta.setSelectionRange(charPos, charPos + raw.length);
+          const linesBefore = ta.value.substring(0, charPos).split('\n').length - 1;
+          const lineH = ta.scrollHeight / lines.length;
+          ta.scrollTop = Math.max(0, linesBefore * lineH - ta.clientHeight / 2 + lineH / 2);
+          return;
+        }
+      } catch {}
     }
+    charPos += raw.length + 1;
   }
 }
 
@@ -1400,7 +1408,7 @@ function doParse() {
   const lpane  = document.getElementById('lpane');
   if (!text.trim()) {
     S.mem = null; status.className=''; status.textContent='No dump loaded';
-    lpane.classList.remove('has-dump');
+
     return;
   }
   let off = 0n;
@@ -1409,12 +1417,10 @@ function doParse() {
   S.mem = parseDump(text, off);
   if (S.mem.bytes === 0) {
     status.className='err'; status.textContent='Parse error — no valid lines found';
-    lpane.classList.remove('has-dump');
+
   } else {
     status.className='ok';
     status.textContent=`${(S.mem.bytes/1024).toFixed(1)} KB · ${S.mem.segments} segment${S.mem.segments!==1?'s':''}`;
-    lpane.classList.add('has-dump');
-    renderDumpView(text, off);
   }
 }
 
@@ -1619,10 +1625,6 @@ function loadFile(file) {
 // ══ Events ════════════════════════════════════════════════════════════════════
 
 document.getElementById('finput').addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
-document.getElementById('dump-clear').addEventListener('click', () => {
-  document.getElementById('dump-text').value = '';
-  doParse();
-});
 document.getElementById('dump-text').addEventListener('input', scheduleParse);
 document.getElementById('in-off').addEventListener('change', doParse);
 document.getElementById('walk').addEventListener('click', doWalk);
